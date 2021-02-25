@@ -1,0 +1,6 @@
+[submodule "ext/vigra"]
+	path = ext/vigra
+	url = https://github.com/ukoethe/vigra.git
+[submodule "ext/picojson"]
+	path = ext/picojson
+	url = https://github.com/kazuho/picojson.git
