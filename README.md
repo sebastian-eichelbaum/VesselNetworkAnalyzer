@@ -168,7 +168,8 @@ folder for reference and differ from these defaults.
     "evdScaleSplineOrder" : 3,
     "//": "If true, the calculated EVD won't be saved",
     "dontSaveEVD" : false
-}```
+}
+```
 
 ### Results
 
