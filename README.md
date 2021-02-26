@@ -83,7 +83,7 @@ These are the building instructions on Linux. Mac OS X and Windows should work i
 ### Configuration
 
 This shows the default settings. This is a commented version of
-[config_defaults.json](config_defaults.json) and is not valid JSON.
+[config_defaults.json](config_defaults.json).
 
 The settings we have used for the ROI-based
 evaluation of subjects and the full-brain data can be found in the example
@@ -91,85 +91,84 @@ folder for reference and differ from these defaults.
 
 ```json
 {
-    // The volume size. The software only supports cubes.
+    "//": "The volume size. The software only supports cubes.",
     "volumeSize" : 1024,
 
-    // The size of a voxel in micormeters. This value is required
-    // for proper EVD calculations.
+    "//": "The size of a voxel in micormeters. This value is required",
+    "//": "for proper EVD calculations.",
     "pixelSize" : 0.73,
 
-    // If true, the network data is in voxel space and will be scaled
-    // by pixel size. This affects segment lengths. Radii are used as is.
+    "//": "If true, the network data is in voxel space and will be scaled",
+    "//": "by pixel size. This affects segment lengths. Radii are used as is.",
     "networkIsVoxelSpace" : false,
 
-    // If true, the volume will be seen as a cylinder instead of a
-    // cube. The software crops the volume to match the cylindric shape
-    // before doing any volume calculations.
+    "//": "If true, the volume will be seen as a cylinder instead of a",
+    "//": "cube. The software crops the volume to match the cylindric shape",
+    "//": "before doing any volume calculations.",
     "cylindric" : false,
 
-    // If true, the whole network is assumed to be cropped already.
-    // It will be used as is but the volume will be assumed to be defined
-    // by networkCutXY and networkCutZ (i.e. for densities).
+    "//": "If true, the whole network is assumed to be cropped already.",
+    "//": "It will be used as is but the volume will be assumed to be defined",
+    "//": "by networkCutXY and networkCutZ (i.e. for densities).",
     "preCroppedNetwork" : true,
 
-    // If pre-cropped is false, these values define the percentage of
-    // the volume used. Cropping will be done equidistantly from the sides.
+    "//": "If pre-cropped is false, these values define the percentage of",
+    "//": "the volume used. Cropping will be done equidistantly from the sides.",
     "networkCutXY" : 50.0,
     "networkCutZ" : 75.0,
-    // Like the network data, the masked volume can be cut in a similar way.
-    // This defines the amount of volume to use for calculations, cropped
-    // equidistantly from the sides.
+    "//": "Like the network data, the masked volume can be cut in a similar way.",
+    "//": "This defines the amount of volume to use for calculations, cropped",
+    "//": "equidistantly from the sides.",
     "volumeCutXYVVF" : 95.0,
     "volumeCutZVVF" : 100.0,
-    // The same for the EVD calculations.
+    "//": "The same for the EVD calculations.",
     "volumeCutXYEVD" : 100.0,
     "volumeCutZEVD" : 100.0,
 
-    // Restrict the max degree of branch points. Useful to filter some
-    // noisy branch points.
+    "//": "Restrict the max degree of branch points. Useful to filter some",
+    "//": "noisy branch points.",
     "restrictDegree" : true,
-    // If restricted, map larger branch point degree to the max?
+    "//": "If restricted, map larger branch point degree to the max?",
     "mapLargerToMax" : false,
-    // If restricted, use this a s max branch point degree.
+    "//": "If restricted, use this a s max branch point degree.",
     "maxBranchpointDegree" : 6,
 
-    // Should very close branch points be merged into one?
+    "//": "Should very close branch points be merged into one?",
     "mergeCloseBranchPoints" : true,
-    // If merging close branch points, use this as a max distance to
-    // merge in the same coordinate system as the network data.
+    "//": "If merging close branch points, use this as a max distance to",
+    "//": "merge in the same coordinate system as the network data.",
     "maxMergeDistance" : 2.0,
 
-    // We store the diameter per segment length in a discrete length-span
-    // histogram. These values define the histogram.
+    "//": "We store the diameter per segment length in a discrete length-span",
+    "//": "histogram. These values define the histogram.",
     "diameterPerLengthMin" : 1,
     "diameterPerLengthMax" : 70,
     "diameterPerLengthNumBins" : 14,
 
-    // Force a min and max range for EVD values.
+    "//": "Force a min and max range for EVD values.",
     "minEVD" : 0.10,
     "useMinEVD" : true,
     "maxEVD" : 200.0,
     "useMaxEVD" : true,
 
-    // Define a discretization scheme for EVD. This defines the histogram
-    // used to categorize EVD values.
+    "//": "Define a discretization scheme for EVD. This defines the histogram",
+    "//": "used to categorize EVD values.",
     "evdHistMin" : 0,
     "evdHistMax" : 200.0,
     "evdNumBins" : 20,
 
-    // Scale the volume for evd calculation and saving. Set to 0 (default if
-    // unset) to disable any scaling. When changing this value, previously
-    // saved EVD volumes are probably not useable anymore.
+    "//": "Scale the volume for evd calculation and saving. Set to 0 (default if",
+    "//": "unset) to disable any scaling. When changing this value, previously",
+    "//": "saved EVD volumes are probably not useable anymore.",
     "evdVolumeSize" : 0,
-    // When scaling the EVD volume, use this threshold to define the
-    // vessel mask threshold in the scaled volume.
+    "//": "When scaling the EVD volume, use this threshold to define the",
+    "//": "vessel mask threshold in the scaled volume.",
     "evdScaleThreshold" : 192,
-    // When scaling the EVD volume, use n-order B-Spline interpolation.
+    "//": "When scaling the EVD volume, use n-order B-Spline interpolation.",
     "evdScaleSplineOrder" : 3,
-    // If true, the calculated EVD won't be saved
+    "//": "If true, the calculated EVD won't be saved",
     "dontSaveEVD" : false
-}
-```
+}```
 
 ### Results
 
