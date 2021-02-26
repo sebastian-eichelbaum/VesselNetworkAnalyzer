@@ -1,0 +1,43 @@
+{
+    "volumeSize" : 1024,
+
+    "pixelSize" : 0.73,
+
+    "networkIsVoxelSpace" : false,
+
+    "cylindric" : false,
+
+    "preCroppedNetwork" : true,
+
+    "networkCutXY" : 50.0,
+    "networkCutZ" : 75.0,
+    "volumeCutXYVVF" : 95.0,
+    "volumeCutZVVF" : 100.0,
+    "volumeCutXYEVD" : 100.0,
+    "volumeCutZEVD" : 100.0,
+
+    "restrictDegree" : true,
+    "mapLargerToMax" : false,
+    "maxBranchpointDegree" : 6,
+
+    "mergeCloseBranchPoints" : true,
+    "maxMergeDistance" : 2.0,
+
+    "diameterPerLengthMin" : 1,
+    "diameterPerLengthMax" : 70,
+    "diameterPerLengthNumBins" : 14,
+
+    "minEVD" : 0.10,
+    "useMinEVD" : true,
+    "maxEVD" : 200.0,
+    "useMaxEVD" : true,
+
+    "evdHistMin" : 0,
+    "evdHistMax" : 200.0,
+    "evdNumBins" : 20,
+
+    "evdVolumeSize" : 0,
+    "evdScaleThreshold" : 192,
+    "evdScaleSplineOrder" : 3,
+    "dontSaveEVD" : false
+}

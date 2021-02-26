@@ -35,6 +35,10 @@ cmake_install.cmake
 # Compile commands list
 compile_commands.json
 
+# Example data
+example/data
+example/results
+
 # ctags
 tags
 

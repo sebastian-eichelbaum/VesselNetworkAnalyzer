@@ -27,8 +27,8 @@ namespace
      */
     void printHello()
     {
-        std::cout << "NOGO Analyzer - part of the NOGO Result Analyzer Software Package" << std::endl
-                  << "Copyright (C) 2015-2019 Dr. Sebastian Eichelbaum (http://www.nemtics.com)" << std::endl
+        std::cout << "Vessel Network Analyzer" << std::endl
+                  << "Copyright (C) 2015-2021 Dr. Sebastian Eichelbaum (http://www.nemtics.com)" << std::endl
                   << std::endl
                   << "This program comes with ABSOLUTELY NO WARRANTY." << std::endl
                   << "For more details, refer to the license that" << std::endl
@@ -42,12 +42,12 @@ namespace
     void printUsage()
     {
         std::cout << "Usage:" << std::endl << std::endl
-                  << "analyzer OUTPUT_PATH NETWORK_FILE VOLUME_FILE VOLUMEDT_FILE SETTINGS_FILE" << std::endl << std::endl
-                  << "OUTPUT_PATH - the relative or absolute path where to write results. Needs to exist." << std::endl
-                  << "NETWORK_FILE - the relative or absolute path to the network file." << std::endl
-                  << "VOLUME_FILE - optional - the relative or absolute path to the volume file. To skip, specify an empty string via \"\"." << std::endl
-                  << "VOLUMEDT_FILE - optional - the relative or absolute path to the distance transformed volume file. To skip, specify an empty string via \"\"." << std::endl
-                  << "SETTINGS_FILE - optional - the config file to load. To skip, specify an empty string via \"\"." << std::endl;
+                  << "analyzer OUTPUT_PATH NETWORK_FILE [VOLUME_FILE] [VOLUMEDT_FILE] [SETTINGS_FILE]" << std::endl << std::endl
+                  << "  OUTPUT_PATH   - the relative or absolute path where to write results. Needs to exist." << std::endl
+                  << "  NETWORK_FILE  - the relative or absolute path to the network file." << std::endl
+                  << "  VOLUME_FILE   - optional - the relative or absolute path to the volume file. To skip, specify an empty string via \"\"." << std::endl
+                  << "  VOLUMEDT_FILE - optional - the relative or absolute path to the distance transformed volume file. To skip, specify an empty string via \"\"." << std::endl
+                  << "  SETTINGS_FILE - optional - the config file to load. To skip, specify an empty string via \"\"." << std::endl;
     }
 }
 

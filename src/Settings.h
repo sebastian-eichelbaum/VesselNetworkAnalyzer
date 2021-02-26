@@ -36,11 +36,11 @@ namespace nogo
         bool networkIsVoxelSpace = false;
 
         // If true, the volume will be seen as a cylinder instead of a cube.
-        bool cylindric = true;
+        bool cylindric = false;
 
         // If true, the whole network is assumed to be cropped already. It will be used as is but the volume will be
         // assumed to be defined by networkCutXY and networkCutZ (i.e. for densities).
-        bool preCroppedNetwork = false;
+        bool preCroppedNetwork = true;
 
         // Data can be cut using a cylinder. This defines the diameter of the cylinder in percent of the original
         // volume and its height in percent of the original volume.
