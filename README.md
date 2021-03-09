@@ -182,7 +182,7 @@ folder for reference and differ from these defaults.
 * Branchpoint diameter:
     * ```BranchPoints.diameter.capillary.csv, BranchPoints.diameter.csv, BranchPoints.diameter.non-capillary.csv```
 * Segments angle adjacency:
-    * ```Segments.angleAdjacency.capillary.csv, Segments.angleAdjacency.csv, Segments.angleAdjacency.non-capillary.csv
+    * ```Segments.angleAdjacency.capillary.csv, Segments.angleAdjacency.csv, Segments.angleAdjacency.non-capillary.csv```
     * The angles between adjacent segments.
 * Segment count:
     * ```Segments.count.capillary.csv, Segments.count.csv, Segments.count.non-capillary.csv```
