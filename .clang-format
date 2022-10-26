@@ -1,0 +1,125 @@
+---
+
+###############################################################################
+#
+# Doc: http://clang.llvm.org/docs/ClangFormatStyleOptions.html
+#
+# To find the Style defaults:
+#  clang-format -style=Microsoft -dump-config > styledefaults
+#
+###############################################################################
+
+###############################################################################
+#
+# Base settings
+#
+BasedOnStyle: Microsoft
+
+# Use formatting for C++ and Standard-specific constructs
+Language:        Cpp
+# "Latest" would be best but there are issues
+# TODO: check if the issue is solved:
+#
+# template <typename T>
+# class funny
+# {
+# public:
+#     void fun(() requires SomeConcept<T>
+#     {
+#     }
+#
+# private:
+#     int x = 0;
+# }
+#
+# Latest/C++20 makes
+# private : int x = =;
+#
+# Update: 22/01/12 -> Clang-format 13 seems to handle this nicely now
+Standard:        Latest
+
+# Tabs and Indent
+UseTab:          Never
+TabWidth:        4
+IndentWidth:     4
+
+# Line length
+ColumnLimit:     120
+
+###############################################################################
+#
+# Allow short blocks?
+#
+# -> Check doc for AllowShort(XYZ)OnASingleLine
+
+###############################################################################
+#
+# Break- rules
+#
+
+# Define custom rules
+BreakBeforeBraces: Custom
+
+# Break rules
+BraceWrapping:
+  AfterCaseLabel:  true
+  AfterUnion:      true
+
+# Always break after template< ... >
+AlwaysBreakTemplateDeclarations: true
+
+###############################################################################
+#
+# Indenting
+#
+
+# Case in Switch-Statements.
+IndentCaseLabels: true
+
+# Access modifiers (public, private, protected)
+IndentAccessModifiers: false
+# Indent by IndentWidth + AccessModifierOffset
+AccessModifierOffset: -4
+
+# Indent namespaces.
+NamespaceIndentation: All
+
+# Indent preprocessor instructions
+IndentPPDirectives: BeforeHash
+
+###############################################################################
+#
+# Spacing rules
+#
+
+# Minimum spaces in // comments and max. Max applies to the first // line only.
+SpacesInLineCommentPrefix:
+  Minimum:         1
+  Maximum:         1
+
+# Add space before the init list of a constructor
+SpaceBeforeCtorInitializerColon: false
+# Space before the inheritance colon "class X[space?]: public Y"
+SpaceBeforeInheritanceColon: false
+
+# Spaces in <>
+SpacesInAngles: Always
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+###############################################################################
+#
+# Additional
+#
+
+# Allow empty lines at the beginning of blocks?
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# Position of * Left: auto* x, Right: auto *x, Middle: auto * x.
+PointerAlignment: Left
+
+# Provide regex to describe categories of includes.
+# IncludeCategories
+
+...
+

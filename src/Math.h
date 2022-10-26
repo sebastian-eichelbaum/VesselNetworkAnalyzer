@@ -11,8 +11,8 @@
 #ifndef NOGO_MATH_H
 #define NOGO_MATH_H
 
-#include <cmath>
 #include <array>
+#include <cmath>
 
 #include "Types.h"
 
@@ -44,15 +44,15 @@ namespace nogo
      *
      * \return length of the vector.
      */
-    template< typename VectorType >
-    typename VectorType::value_type length( const VectorType& a )
+    template < typename VectorType >
+    typename VectorType::value_type length(const VectorType& a)
     {
-        return std::sqrt( std::pow( a[ 0 ], 2 ) + std::pow( a[ 1 ], 2 ) + std::pow( a[ 2 ], 2 ) );
+        return std::sqrt(std::pow(a[0], 2) + std::pow(a[1], 2) + std::pow(a[2], 2));
     }
 
-    bool operator<=( const Vec3& a, const Vec3& b)
+    bool operator<=(const Vec3& a, const Vec3& b)
     {
-        return ( a[ 0 ] <= b[ 0 ] ) && ( a[ 1 ] <= b[ 1 ] ) && ( a[ 2 ] <= b[ 2 ] );
+        return (a[0] <= b[0]) && (a[1] <= b[1]) && (a[2] <= b[2]);
     }
 
     /**
@@ -64,81 +64,80 @@ namespace nogo
      *
      * \return distance between both points.
      */
-    template< typename PointType >
-    typename PointType::value_type distance( const PointType& a, const PointType& b )
+    template < typename PointType >
+    typename PointType::value_type distance(const PointType& a, const PointType& b)
     {
-        return length( PointType( { { a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ], a[ 2 ] - b[ 2 ] } } ) );
+        return length(PointType({{a[0] - b[0], a[1] - b[1], a[2] - b[2]}}));
     }
 
-    template< typename PointType >
-    PointType abs( const PointType& a )
+    template < typename PointType >
+    PointType abs(const PointType& a)
     {
-        return PointType( { { std::abs( a[ 0 ] ), std::abs( a[ 1 ] ), std::abs( a[ 2 ] ) } } );
+        return PointType({{std::abs(a[0]), std::abs(a[1]), std::abs(a[2])}});
     }
 
-    template< typename PointType >
-    PointType difference( const PointType& a, const PointType& b )
+    template < typename PointType >
+    PointType difference(const PointType& a, const PointType& b)
     {
-        return PointType( { { a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ], a[ 2 ] - b[ 2 ] } } );
+        return PointType({{a[0] - b[0], a[1] - b[1], a[2] - b[2]}});
     }
 
-    template< typename PointType >
-    PointType add( const PointType& a, const PointType& b )
+    template < typename PointType >
+    PointType add(const PointType& a, const PointType& b)
     {
-        return PointType( { { a[ 0 ] + b[ 0 ], a[ 1 ] + b[ 1 ], a[ 2 ] + b[ 2 ] } } );
+        return PointType({{a[0] + b[0], a[1] + b[1], a[2] + b[2]}});
     }
 
     //! Safely add a point b that might contain nan to another one that is safe.
-    template< typename PointType >
-    PointType safeAdd( const PointType& a, const PointType& b )
+    template < typename PointType >
+    PointType safeAdd(const PointType& a, const PointType& b)
     {
-        auto val = []( const PointType x, int i ) { return std::isnan( x[ i ] ) ? 0 : x[ i ]; };
-        return PointType( { { a[ 0 ] + val( b, 0 ), a[ 1 ] + val( b, 1 ), a[ 2 ] + val( b, 2 ) } } );
+        auto val = [](const PointType x, int i) { return std::isnan(x[i]) ? 0 : x[i]; };
+        return PointType({{a[0] + val(b, 0), a[1] + val(b, 1), a[2] + val(b, 2)}});
     }
 
-    template< typename PointType >
-    PointType scale( const PointType& a, const Real& b )
+    template < typename PointType >
+    PointType scale(const PointType& a, const Real& b)
     {
-        return PointType( { { a[ 0 ] * b, a[ 1 ] * b, a[ 2 ] * b } } );
+        return PointType({{a[0] * b, a[1] * b, a[2] * b}});
     }
 
-    template<class T>
-    constexpr const T& clamp( const T& v, const T& lo, const T& hi )
+    template < class T >
+    constexpr const T& clamp(const T& v, const T& lo, const T& hi)
     {
         return (v < lo) ? lo : (hi < v) ? hi : v;
     }
 
-    template< typename PointType >
-    typename PointType::value_type dot( const PointType& a, const PointType& b )
+    template < typename PointType >
+    typename PointType::value_type dot(const PointType& a, const PointType& b)
     {
-        return ( a[ 0 ] * b[ 0 ] ) + ( a[ 1 ] * b[ 1 ] ) + ( a[ 2 ] * b[ 2 ] );
+        return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
     }
 
     /**
      * The normalized direction between two points from a to b.
      */
-    template< typename PointType >
-    PointType normalizedDirection( const PointType& a, const PointType& b )
+    template < typename PointType >
+    PointType normalizedDirection(const PointType& a, const PointType& b)
     {
-        auto diff = difference( b, a );
-        return scale( diff, 1.0 / length( diff ) );
+        auto diff = difference(b, a);
+        return scale(diff, 1.0 / length(diff));
     }
 
     //! Calculate the angle in degree between two normalized vectors.
-    template< typename PointType >
-    typename PointType::value_type degree( const PointType& aNormalized, const PointType& bNormalized )
+    template < typename PointType >
+    typename PointType::value_type degree(const PointType& aNormalized, const PointType& bNormalized)
     {
-        auto d = dot( aNormalized, bNormalized );
-        return 180.0 * std::acos( clamp( d, -1.0, 1.0 ) ) / 3.14159265358979323846;
+        auto d = dot(aNormalized, bNormalized);
+        return 180.0 * std::acos(clamp(d, -1.0, 1.0)) / 3.14159265358979323846;
     }
 
     //! Midpoint between two given points
-    template< typename PointType >
-    PointType midpoint( const PointType& a, const PointType& b )
+    template < typename PointType >
+    PointType midpoint(const PointType& a, const PointType& b)
     {
-        return add( a, scale( difference( b, a ), 0.5 ) );
+        return add(a, scale(difference(b, a), 0.5));
     }
-}
+} // namespace nogo
 
-#endif  // NOGO_MATH_H
-
+#endif // NOGO_MATH_H

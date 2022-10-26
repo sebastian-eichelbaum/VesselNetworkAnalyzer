@@ -11,14 +11,14 @@
 #ifndef NOGO_DATA_H
 #define NOGO_DATA_H
 
-#include <vector>
-#include <string>
-#include <utility>
 #include <list>
 #include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "Types.h"
 #include "Math.h"
+#include "Types.h"
 
 #include "Logger.h"
 #define LogTag "nogo/Data"
@@ -31,7 +31,7 @@ namespace nogo
     //
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    template< typename ValueType >
+    template < typename ValueType >
     struct Volume
     {
         /**
@@ -51,14 +51,13 @@ namespace nogo
          * \param sY size in Y
          * \param sZ size in Z
          */
-        Volume( const IndexType& sX, const IndexType& sY, const IndexType& sZ )
-            : sizeX( sX ),
-              sizeY( sY ),
-              sizeZ( sZ ),
-              boundingBox( std::make_pair( Vec3{{static_cast< Real >( 0 ), static_cast< Real >( 0 ), static_cast< Real >( 0 )}},
-                                           Vec3{{static_cast< Real >( sX ), static_cast< Real >( sY ), static_cast< Real >( sZ )}} ) )
+        Volume(const IndexType& sX, const IndexType& sY, const IndexType& sZ)
+            : sizeX(sX), sizeY(sY), sizeZ(sZ),
+              boundingBox(
+                  std::make_pair(Vec3{{static_cast< Real >(0), static_cast< Real >(0), static_cast< Real >(0)}},
+                                 Vec3{{static_cast< Real >(sX), static_cast< Real >(sY), static_cast< Real >(sZ)}}))
         {
-            data.resize( size() );
+            data.resize(size());
         }
 
         /**
@@ -75,9 +74,9 @@ namespace nogo
          *
          * \return memory index in the data
          */
-        IndexType index( const IndexType& x, const IndexType& y, const IndexType& z ) const
+        IndexType index(const IndexType& x, const IndexType& y, const IndexType& z) const
         {
-            return ( z * sizeY * sizeX ) + ( y * sizeX ) + x;
+            return (z * sizeY * sizeX) + (y * sizeX) + x;
         }
 
         /**
@@ -89,10 +88,10 @@ namespace nogo
          *
          * \return true if valid
          */
-        bool valid( const IndexType& x, const IndexType& y, const IndexType& z ) const
+        bool valid(const IndexType& x, const IndexType& y, const IndexType& z) const
         {
-            auto lowerCriterion = ( x >= 0 ) && ( y >= 0 ) && ( z >= 0 );
-            auto upperCriterion = ( x < sizeX ) && ( y < sizeY ) && ( z < sizeZ );
+            auto lowerCriterion = (x >= 0) && (y >= 0) && (z >= 0);
+            auto upperCriterion = (x < sizeX) && (y < sizeY) && (z < sizeZ);
             return upperCriterion && lowerCriterion;
         }
 
@@ -125,8 +124,8 @@ namespace nogo
     using CTVolume = Volume< uint16_t >;
 
     /**
-     * Basic data capsule for vessel network data. General rule: DO NOT write methods that derive data from data in the class. Only provide methods to
-     * access data.
+     * Basic data capsule for vessel network data. General rule: DO NOT write methods that derive data from data in the
+     * class. Only provide methods to access data.
      */
     struct VesselNetwork
     {
@@ -156,7 +155,8 @@ namespace nogo
         std::vector< ValueType > pointRadii;
 
         /**
-         * The lines in the graph as pair of node indices. Multiple lines might make up a edge (between two branch points).
+         * The lines in the graph as pair of node indices. Multiple lines might make up a edge (between two branch
+         * points).
          */
         std::vector< std::pair< IndexType, IndexType > > lines;
 
@@ -177,8 +177,8 @@ namespace nogo
     };
 
     /**
-     * Derived from the input data, this describes the actual vessel segments. The input data usually is only a bunch of lines. The real
-     * adjacency information is given implicitly only. This struct contains adjacency explicitly.
+     * Derived from the input data, this describes the actual vessel segments. The input data usually is only a bunch of
+     * lines. The real adjacency information is given implicitly only. This struct contains adjacency explicitly.
      */
     struct VesselSegments
     {
@@ -195,7 +195,7 @@ namespace nogo
         /**
          * A copy of the point list, as the network reconstruction algorithm modifies the data.
          */
-        decltype( VesselNetwork::points ) points;
+        decltype(VesselNetwork::points) points;
 
         /**
          * Point degrees.
@@ -236,8 +236,6 @@ namespace nogo
          * Non-Capillary volume derived from lines data.
          */
         Real volumeNonCapillaries;
-
-
     };
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -247,9 +245,10 @@ namespace nogo
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * This struct contains the local segment data like lengths and so on. It is just a container for several values associated with vessel
-     * segments. It also contains some kind of redundant information. I.e. the radius AND the diameter. The purpose is to ensure that the scripts used
-     * to generate the diagrams do not need to calculate anything. They just take these arrays and draw diagrams.
+     * This struct contains the local segment data like lengths and so on. It is just a container for several values
+     * associated with vessel segments. It also contains some kind of redundant information. I.e. the radius AND the
+     * diameter. The purpose is to ensure that the scripts used to generate the diagrams do not need to calculate
+     * anything. They just take these arrays and draw diagrams.
      */
     struct SegmentData
     {
@@ -264,10 +263,10 @@ namespace nogo
         std::vector< Real > lengths;
 
         /**
-         * The direct distance between start and endpoint of the segment. The index in the vector relates to the segment ID.
-         * Although not directly needed for the requested figures, it might get handy some time.
+         * The direct distance between start and endpoint of the segment. The index in the vector relates to the segment
+         * ID. Although not directly needed for the requested figures, it might get handy some time.
          */
-        std::vector< Real> directLengths;
+        std::vector< Real > directLengths;
 
         /**
          * The relation between direct length to length. The index in the vector relates to the segment ID.
@@ -280,7 +279,8 @@ namespace nogo
         std::vector< Real > radius;
 
         /**
-         * Segment diameter. Its always 2.0 * radius at the given index. The index in the vector relates to the segment ID.
+         * Segment diameter. Its always 2.0 * radius at the given index. The index in the vector relates to the segment
+         * ID.
          */
         std::vector< Real > diameter;
 
@@ -294,25 +294,25 @@ namespace nogo
             std::vector< Real > all;
             std::vector< Real > caps;
             std::vector< Real > noncaps;
-            
-            void addByDiameter( Real /*d*/, Real angle, bool isCapillary )
+
+            void addByDiameter(Real /*d*/, Real angle, bool isCapillary)
             {
-                all.push_back( angle );
-                if( isCapillary )
+                all.push_back(angle);
+                if (isCapillary)
                 {
-                    caps.push_back( angle );
+                    caps.push_back(angle);
                 }
                 else
                 {
-                    noncaps.push_back( angle );
+                    noncaps.push_back(angle);
                 }
             }
 
-            void reserve( size_t n )
+            void reserve(size_t n)
             {
-                all.reserve( n );
-                caps.reserve( n );
-                noncaps.reserve( n );
+                all.reserve(n);
+                caps.reserve(n);
+                noncaps.reserve(n);
             }
         };
 
@@ -355,13 +355,14 @@ namespace nogo
         Real segmentDensityNonCapillary;
 
         //! Number of segments
-        size_t numSegments; 
-        size_t numCapillarySegments; 
-        size_t numNonCapillarySegments; 
+        size_t numSegments;
+        size_t numCapillarySegments;
+        size_t numNonCapillarySegments;
     };
 
     /**
-     * This struct contains the local branch point data like degree, diameters and so on. It is only a container for all the data needed.
+     * This struct contains the local branch point data like degree, diameters and so on. It is only a container for all
+     * the data needed.
      */
     struct BranchPointData
     {
@@ -517,6 +518,6 @@ namespace nogo
          */
         std::vector< Real > histBinsCenters;
     };
-}
+} // namespace nogo
 
-#endif  // NOGO_DATA_H
+#endif // NOGO_DATA_H

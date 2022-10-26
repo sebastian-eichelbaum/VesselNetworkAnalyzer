@@ -16,7 +16,8 @@
 namespace nogo
 {
     /**
-     * Class to implement Python-like ranges in C++. Based on the code found here: https://xanduchene.wordpress.com/2013/03/17/pythonic-ranges-in-c11/
+     * Class to implement Python-like ranges in C++. Based on the code found here:
+     * https://xanduchene.wordpress.com/2013/03/17/pythonic-ranges-in-c11/
      */
     class range
     {
@@ -27,31 +28,31 @@ namespace nogo
         const int step;
 
     public:
-        range( int begin, int end, int stepSize = 1 ) : rbegin( begin ), rend( end ), step( stepSize )
+        range(int begin, int end, int stepSize = 1): rbegin(begin), rend(end), step(stepSize)
         {
-            if( ( rend - rbegin ) % step == 0 )
+            if ((rend - rbegin) % step == 0)
             {
                 step_end = end;
             }
             else
             {
-                int nsteps = static_cast< int >( ( rend - rbegin ) / step );
-                step_end = step * ( nsteps + 1 ) + begin;
+                int nsteps = static_cast< int >((rend - rbegin) / step);
+                step_end = step * (nsteps + 1) + begin;
             }
         }
 
-        explicit range( int end ) : range( 0, end )
+        explicit range(int end): range(0, end)
         {
         }
 
-        class iterator : public std::iterator< std::random_access_iterator_tag, int >
+        class iterator: public std::iterator< std::random_access_iterator_tag, int >
         {
         private:
             int c;
             range& parent;
 
         public:
-            iterator( int start, range& p ) : c( start ), parent( p )
+            iterator(int start, range& p): c(start), parent(p)
             {
             }
 
@@ -66,30 +67,30 @@ namespace nogo
                 return this;
             }
 
-            iterator operator++( int )
+            iterator operator++(int)
             {
                 c += parent.step;
-                return iterator( c - parent.step, parent );
+                return iterator(c - parent.step, parent);
             }
 
-            bool operator==( const iterator& other )
+            bool operator==(const iterator& other)
             {
                 return c == other.c;
             }
 
-            bool operator!=( const iterator& other )
+            bool operator!=(const iterator& other)
             {
                 return c != other.c;
             }
 
-            iterator operator+( int s )
+            iterator operator+(int s)
             {
-                return iterator( parent.step * s + c, parent );
+                return iterator(parent.step * s + c, parent);
             }
 
-            iterator operator-( int s )
+            iterator operator-(int s)
             {
-                return iterator( c - parent.step * s, parent );
+                return iterator(c - parent.step * s, parent);
             }
 
             const iterator* operator--()
@@ -98,33 +99,32 @@ namespace nogo
                 return this;
             }
 
-            iterator operator--( int )
+            iterator operator--(int)
             {
                 c -= parent.step;
-                return iterator( c - parent.step, parent );
+                return iterator(c - parent.step, parent);
             }
         };
 
         iterator begin()
         {
-            return iterator( rbegin, *this );
+            return iterator(rbegin, *this);
         }
         iterator end()
         {
-            return iterator( step_end, *this );
+            return iterator(step_end, *this);
         }
 
-        int operator[]( int s )
+        int operator[](int s)
         {
             return rbegin + s * step;
         }
 
         int size()
         {
-            return static_cast< int >( ( rend - rbegin ) / step );
+            return static_cast< int >((rend - rbegin) / step);
         }
     };
-}
+} // namespace nogo
 
 #endif // NOGO_RANGE_H
-

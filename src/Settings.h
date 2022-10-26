@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <string>
+#include <exception>
 #include <fstream>
 #include <streambuf>
-#include <exception>
+#include <string>
 
 #include <picojson.h>
 
@@ -105,113 +105,113 @@ namespace nogo
          * \return settings
          *
          */
-        static Settings fromFile( const std::string& fn );
+        static Settings fromFile(const std::string& fn);
     };
 
     namespace __json
     {
-        void get( bool& in, std::string name, picojson::value::object::const_iterator v )
+        void get(bool& in, std::string name, picojson::value::object::const_iterator v)
         {
-            if( ( v->first == name ) && v->second.is< bool >() )
+            if ((v->first == name) && v->second.is< bool >())
             {
                 in = v->second.get< bool >();
-                LogD << "Setting - bool - " << name << " : " << std::to_string( in ) << LogEnd;
+                LogD << "Setting - bool - " << name << " : " << std::to_string(in) << LogEnd;
             }
-            else if( v->first == name )
+            else if (v->first == name)
             {
-                throw std::runtime_error( std::string( "Parsing error in settings file. Error: " ) + name +
-                                          " needs to be a boolean." );
-            }
-        }
-
-        void get( Real& in, std::string name, picojson::value::object::const_iterator v )
-        {
-            if( ( v->first == name ) && v->second.is< double >() )
-            {
-                in = v->second.get< double >();
-                LogD << "Setting - double - " << name << " : " << std::to_string( in ) << LogEnd;
-            }
-            else if( v->first == name )
-            {
-                throw std::runtime_error( std::string( "Parsing error in settings file. Error: " ) + name +
-                                          " needs to be a number." );
+                throw std::runtime_error(std::string("Parsing error in settings file. Error: ") + name +
+                                         " needs to be a boolean.");
             }
         }
 
-        void get( int& in, std::string name, picojson::value::object::const_iterator v )
+        void get(Real& in, std::string name, picojson::value::object::const_iterator v)
         {
-            if( ( v->first == name ) && v->second.is< double >() )
+            if ((v->first == name) && v->second.is< double >())
             {
                 in = v->second.get< double >();
-                LogD << "Setting - int - " << name << " : " << std::to_string( in ) << LogEnd;
+                LogD << "Setting - double - " << name << " : " << std::to_string(in) << LogEnd;
             }
-            else if( v->first == name )
+            else if (v->first == name)
             {
-                throw std::runtime_error( std::string( "Parsing error in settings file. Error: " ) + name +
-                                          " needs to be a number." );
+                throw std::runtime_error(std::string("Parsing error in settings file. Error: ") + name +
+                                         " needs to be a number.");
+            }
+        }
+
+        void get(int& in, std::string name, picojson::value::object::const_iterator v)
+        {
+            if ((v->first == name) && v->second.is< double >())
+            {
+                in = v->second.get< double >();
+                LogD << "Setting - int - " << name << " : " << std::to_string(in) << LogEnd;
+            }
+            else if (v->first == name)
+            {
+                throw std::runtime_error(std::string("Parsing error in settings file. Error: ") + name +
+                                         " needs to be a number.");
             }
         }
     } // namespace __json
 
-    Settings Settings::fromFile( const std::string& fn )
+    Settings Settings::fromFile(const std::string& fn)
     {
-        std::ifstream t( fn );
-        if( !t.is_open() )
+        std::ifstream t(fn);
+        if (!t.is_open())
         {
-            throw std::runtime_error( std::string( "Cannot read settings file." ) );
+            throw std::runtime_error(std::string("Cannot read settings file."));
         }
-        std::string str( ( std::istreambuf_iterator< char >( t ) ), std::istreambuf_iterator< char >() );
+        std::string str((std::istreambuf_iterator< char >(t)), std::istreambuf_iterator< char >());
 
         picojson::value v;
-        auto err = picojson::parse( v, str );
-        if( !err.empty() )
+        auto err = picojson::parse(v, str);
+        if (!err.empty())
         {
-            throw std::runtime_error( std::string( "Parsing error in settings file. Error: " ) + err );
+            throw std::runtime_error(std::string("Parsing error in settings file. Error: ") + err);
         }
 
         Settings result;
 
-        if( !v.is< picojson::object >() )
+        if (!v.is< picojson::object >())
         {
-            throw std::runtime_error( std::string( "Parsing error in settings file. Error: root is not an object." ) );
+            throw std::runtime_error(std::string("Parsing error in settings file. Error: root is not an object."));
         }
 
         const auto& obj = v.get< picojson::object >();
-        for( auto i = obj.begin(); i != obj.end(); ++i )
+        for (auto i = obj.begin(); i != obj.end(); ++i)
         {
-            __json::get( result.volumeSize, "volumeSize", i );
-            __json::get( result.pixelSize, "pixelSize", i );
-            __json::get( result.networkIsVoxelSpace, "networkIsVoxelSpace", i );
-            __json::get( result.cylindric, "cylindric", i );
-            __json::get( result.preCroppedNetwork, "preCroppedNetwork", i );
-            __json::get( result.networkCutXY, "networkCutXY", i );
-            __json::get( result.networkCutZ, "networkCutZ", i );
-            __json::get( result.volumeCutXYVVF, "volumeCutXYVVF", i );
-            __json::get( result.volumeCutZVVF, "volumeCutZVVF", i );
-            __json::get( result.volumeCutXYEVD, "volumeCutXYEVD", i );
-            __json::get( result.volumeCutZEVD, "volumeCutZEVD", i );
-            __json::get( result.restrictDegree, "restrictDegree", i );
-            __json::get( result.mapLargerToMax, "mapLargerToMax", i );
-            __json::get( result.maxBranchpointDegree, "maxBranchpointDegree", i );
-            __json::get( result.mergeCloseBranchPoints, "mergeCloseBranchPoints", i );
-            __json::get( result.maxMergeDistance, "maxMergeDistance", i );
-            __json::get( result.diameterPerLengthMin, "diameterPerLengthMin", i );
-            __json::get( result.diameterPerLengthMax, "diameterPerLengthMax", i );
-            __json::get( result.diameterPerLengthNumBins, "diameterPerLengthNumBins", i );
-            __json::get( result.minEVD, "minEVD", i );
-            __json::get( result.useMinEVD, "useMinEVD", i );
-            __json::get( result.maxEVD, "maxEVD", i );
-            __json::get( result.useMaxEVD, "useMaxEVD", i );
-            __json::get( result.evdHistMin, "evdHistMin", i );
-            __json::get( result.evdHistMax, "evdHistMax", i );
-            __json::get( result.evdNumBins, "evdNumBins", i );
-            __json::get( result.evdVolumeSize, "evdVolumeSize", i );
-            __json::get( result.evdScaleSplineOrder, "evdScaleSplineOrder", i );
-            __json::get( result.evdScaleThreshold, "evdScaleThreshold", i );
-            __json::get( result.dontSaveEVD, "dontSaveEVD", i );
+            __json::get(result.volumeSize, "volumeSize", i);
+            __json::get(result.pixelSize, "pixelSize", i);
+            __json::get(result.networkIsVoxelSpace, "networkIsVoxelSpace", i);
+            __json::get(result.cylindric, "cylindric", i);
+            __json::get(result.preCroppedNetwork, "preCroppedNetwork", i);
+            __json::get(result.networkCutXY, "networkCutXY", i);
+            __json::get(result.networkCutZ, "networkCutZ", i);
+            __json::get(result.volumeCutXYVVF, "volumeCutXYVVF", i);
+            __json::get(result.volumeCutZVVF, "volumeCutZVVF", i);
+            __json::get(result.volumeCutXYEVD, "volumeCutXYEVD", i);
+            __json::get(result.volumeCutZEVD, "volumeCutZEVD", i);
+            __json::get(result.restrictDegree, "restrictDegree", i);
+            __json::get(result.mapLargerToMax, "mapLargerToMax", i);
+            __json::get(result.maxBranchpointDegree, "maxBranchpointDegree", i);
+            __json::get(result.mergeCloseBranchPoints, "mergeCloseBranchPoints", i);
+            __json::get(result.maxMergeDistance, "maxMergeDistance", i);
+            __json::get(result.diameterPerLengthMin, "diameterPerLengthMin", i);
+            __json::get(result.diameterPerLengthMax, "diameterPerLengthMax", i);
+            __json::get(result.diameterPerLengthNumBins, "diameterPerLengthNumBins", i);
+            __json::get(result.minEVD, "minEVD", i);
+            __json::get(result.useMinEVD, "useMinEVD", i);
+            __json::get(result.maxEVD, "maxEVD", i);
+            __json::get(result.useMaxEVD, "useMaxEVD", i);
+            __json::get(result.evdHistMin, "evdHistMin", i);
+            __json::get(result.evdHistMax, "evdHistMax", i);
+            __json::get(result.evdNumBins, "evdNumBins", i);
+            __json::get(result.evdVolumeSize, "evdVolumeSize", i);
+            __json::get(result.evdScaleSplineOrder, "evdScaleSplineOrder", i);
+            __json::get(result.evdScaleThreshold, "evdScaleThreshold", i);
+            __json::get(result.dontSaveEVD, "dontSaveEVD", i);
         }
 
-        if( !result.cylindric )
+        if (!result.cylindric)
         {
             LogI << "Force-Disabled cutting of data. Not allowed for non-cylindric data." << LogEnd;
             result.networkCutZ = 100.0;
@@ -224,4 +224,4 @@ namespace nogo
 
         return result;
     }
-}
+} // namespace nogo

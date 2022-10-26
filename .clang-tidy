@@ -1,0 +1,25 @@
+---
+# Disable some very company/target-specific checks.
+#
+#  -misc-non-private-member-variables-in-classes: this complains about public members in classes, but also
+#                                                 structs where they are useful and intended
+#
+#  -modernize-use-trailing-return-type: this forces the use of trailing return types everywhere. This is not very
+#                                       useful.
+#
+#  -readability-magic-numbers: already covered by cppcoreguidelines-avoid-magic-numbers
+#
+#  -bugprone-easily-swappable-parameters: Complains if a function takes multiple, similarly types parameters. It
+#                                         complains that they can be swapped by accident. True, but often unavaidable.
+#
+Checks:          '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,,-llvm*,-altera-*,
+                  -misc-non-private-member-variables-in-classes,
+                  -modernize-use-trailing-return-type,
+                  -readability-magic-numbers,
+                  -cppcoreguidelines-avoid-magic-numbers,
+                  -bugprone-easily-swappable-parameters,
+                  -readability-identifier-length
+                  '
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle:     none
