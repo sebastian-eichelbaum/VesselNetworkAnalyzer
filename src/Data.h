@@ -174,6 +174,11 @@ namespace nogo
          * The bounding box of the data.
          */
         BoundingBox boundingBox;
+
+        /**
+         * Use an explizit volume for that network. If smaller than zero, the AABB volume will be used instead.
+         */
+        Real volumeOverride = static_cast< Real >(-1);
     };
 
     /**
@@ -191,6 +196,9 @@ namespace nogo
          * Type used to store multiple radii of a segment.
          */
         using SegmentRadii = std::map< Real, VesselNetwork::IndexType >;
+
+        //! The radii associated with a single point.
+        using PointRadii = std::vector< VesselNetwork::ValueType >;
 
         /**
          * A copy of the point list, as the network reconstruction algorithm modifies the data.
@@ -218,14 +226,16 @@ namespace nogo
         std::vector< SegmentRadii > radii;
 
         /**
+         * The radii associated with each point. A point index matches its radius index. This is not necessarily the
+         * same as VesselNetwork::pointRadii - it is the list of the radii of each line adjacent to the given point
+         * index.
+         */
+        std::vector< PointRadii > pointRadii;
+
+        /**
          * Length of a segment in euclidean space.
          */
         std::vector< Real > length;
-
-        /**
-         * Adjacency list. Maps a point Idx with a list of other indices of segments being adjacent.
-         */
-        std::map< VesselNetwork::IndexType, std::set< VesselNetwork::IndexType > > adjacency;
 
         /**
          * Capillary volume derived from lines data.

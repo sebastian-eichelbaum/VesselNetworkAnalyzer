@@ -11,6 +11,8 @@
 #ifndef NOGO_IO_H
 #define NOGO_IO_H
 
+#include <math.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -924,6 +926,41 @@ namespace nogo
 
         LogD << "Loaded " << sizeBytes << " bytes ( = " << numItems << " values) from file." << LogEnd;
         f.close();
+    }
+
+    /**
+     * Load a single floating point number from a file.
+     *
+     * \param filename file to load
+     *
+     * \return the number
+     *
+     * Throws if it does not contain a number in the first line.
+     */
+    template < typename ValueType >
+    ValueType loadNumberFromFile(const std::string& filename)
+    {
+        // Open the file
+        std::ifstream f(filename);
+        if (!f.good())
+        {
+            throw std::runtime_error("Could not open file \"" + filename + "\" for reading.");
+        }
+
+        std::string line;
+        while (std::getline(f, line))
+        {
+            std::istringstream iss(line);
+            ValueType a = 0;
+            if (!(iss >> a))
+            {
+                throw std::runtime_error("Could not read from file \"" + filename + "\". Malformed first line.");
+            }
+
+            return a;
+        }
+
+        throw std::runtime_error("Could not read from file \"" + filename + "\". Does not contain data.");
     }
 
     /**

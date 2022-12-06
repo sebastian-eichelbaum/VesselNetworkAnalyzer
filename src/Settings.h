@@ -151,6 +151,20 @@ namespace nogo
                                          " needs to be a number.");
             }
         }
+
+        void get(std::string& in, std::string name, picojson::value::object::const_iterator v)
+        {
+            if ((v->first == name) && v->second.is< double >())
+            {
+                in = v->second.get< std::string >();
+                LogD << "Setting - string - " << name << " : " << in << LogEnd;
+            }
+            else if (v->first == name)
+            {
+                throw std::runtime_error(std::string("Parsing error in settings file. Error: ") + name +
+                                         " needs to be a string.");
+            }
+        }
     } // namespace __json
 
     Settings Settings::fromFile(const std::string& fn)

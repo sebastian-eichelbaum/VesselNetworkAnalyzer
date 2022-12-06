@@ -41,21 +41,25 @@ namespace
      */
     void printUsage()
     {
-        std::cout << "Usage:" << std::endl
-                  << std::endl
-                  << "analyzer OUTPUT_PATH NETWORK_FILE [VOLUME_FILE] [VOLUMEDT_FILE] [SETTINGS_FILE]" << std::endl
-                  << std::endl
-                  << "  OUTPUT_PATH   - the relative or absolute path where to write results. Needs to exist."
-                  << std::endl
-                  << "  NETWORK_FILE  - the relative or absolute path to the network file." << std::endl
-                  << "  VOLUME_FILE   - optional - the relative or absolute path to the volume file. To skip, specify "
-                     "an empty string via \"\"."
-                  << std::endl
-                  << "  VOLUMEDT_FILE - optional - the relative or absolute path to the distance transformed volume "
-                     "file. To skip, specify an empty string via \"\"."
-                  << std::endl
-                  << "  SETTINGS_FILE - optional - the config file to load. To skip, specify an empty string via \"\"."
-                  << std::endl;
+        std::cout
+            << "Usage:" << std::endl
+            << std::endl
+            << "analyzer OUTPUT_PATH NETWORK_FILE [VOLUME_FILE] [VOLUMEDT_FILE] [SETTINGS_FILE] [VOLUMEOVERRIDE_FILE]"
+            << std::endl
+            << std::endl
+            << "  OUTPUT_PATH   - the relative or absolute path where to write results. Needs to exist." << std::endl
+            << "  NETWORK_FILE  - the relative or absolute path to the network file." << std::endl
+            << "  VOLUME_FILE   - optional - the relative or absolute path to the volume file. To skip, specify "
+               "an empty string via \"\"."
+            << std::endl
+            << "  VOLUMEDT_FILE - optional - the relative or absolute path to the distance transformed volume "
+               "file. To skip, specify an empty string via \"\"."
+            << std::endl
+            << "  SETTINGS_FILE - optional - the config file to load. To skip, specify an empty string via \"\"."
+            << std::endl
+            << "  VOLUMEOVERRIDE_FILE - optional - the file contains the volume of the network as um^3. Use this to "
+               "override AABB volume calculation. To skip, specify an empty string via \"\"."
+            << std::endl;
     }
 } // namespace
 
@@ -72,7 +76,7 @@ int main(int argc, char** argv)
     printHello();
 
     // Parameter validity
-    if ((argc != 6))
+    if ((argc != 7))
     {
         printUsage();
         return -1;
@@ -102,6 +106,7 @@ int main(int argc, char** argv)
 
         // Used settings
         auto settingsFile = std::string(argv[5]);
+        auto volumeOverrideFile = std::string(argv[6]);
 
         if (outputDir.empty())
         {
@@ -192,6 +197,12 @@ int main(int argc, char** argv)
                 LogI << "Calculated distance transformed volume. Writing to \"" << volumeDTFile << "\"." << LogEnd;
                 nogo::write(volumeDTFile, *dtVolume);
             }
+        }
+
+        if (!volumeOverrideFile.empty())
+        {
+            LogI << "Try loading volume override from \"" << volumeOverrideFile << "\"." << LogEnd;
+            vessels->volumeOverride = nogo::loadNumberFromFile< nogo::Real >(volumeOverrideFile);
         }
 
         // 2 - Process

@@ -9,6 +9,7 @@
 //----------------------------------------------------------------------------------------
 
 #include <algorithm>
+#include <cstdint>
 #include <list>
 #include <map>
 #include <numeric>
@@ -188,7 +189,6 @@ namespace nogo
      * \param points the points to use
      * \param lines the lines to use
      * \param radii of each line
-     * \param splitAtDiffRadii if true, different radii cause a segment to be split.
      * \param mergeCloseBranchPoints if true, the algorithm merges branchpoints not more far away than maxMergeDistance
      * \param maxMergeDistance branchpoints closer than this distance will be merged if mergeCloseBranchPoints is true
      *
@@ -196,8 +196,8 @@ namespace nogo
      */
     VesselSegments deriveNetwork(const decltype(VesselNetwork::points)& points,
                                  const decltype(VesselNetwork::lines)& lines,
-                                 const decltype(VesselNetwork::radii)& radii, bool splitAtDiffRadii,
-                                 bool mergeCloseBranchPoints, Real maxMergeDistance)
+                                 const decltype(VesselNetwork::radii)& radii, bool mergeCloseBranchPoints,
+                                 Real maxMergeDistance)
     {
         VesselSegments vessels;
         vessels.points = points;
@@ -207,7 +207,7 @@ namespace nogo
         // Do as long as we have non-assigned lines. We mark each assigned line as "assigned" and skip them.
         std::vector< bool > lineAssigned(lines.size(), false);
 
-        LogD << "Calculating degree of each point." << LogEnd;
+        LogD << "Calculating degree of each point. #Points: " << vessels.points.size() << LogEnd;
 
         // Gather information about each point's degree - how many lines are adjacent to this point? Index matches point
         // index.
@@ -215,9 +215,6 @@ namespace nogo
 
         // Btw: this is our chance to build an inverse points-to-lines map (adjacency list):
         std::vector< std::vector< VesselNetwork::IndexType > > linesByPoint(vessels.points.size());
-
-        std::vector< std::set< Real > > pointRadii;
-        pointRadii.resize(vessels.points.size());
 
         vessels.volumeCapillaries = 0.0;
         vessels.volumeNonCapillaries = 0.0;
@@ -239,10 +236,6 @@ namespace nogo
             linesByPoint[p1Idx].push_back(lineIdx);
             linesByPoint[p2Idx].push_back(lineIdx);
 
-            // Build adjacent radii list
-            pointRadii[p1Idx].insert(radii[lineIdx]);
-            pointRadii[p2Idx].insert(radii[lineIdx]);
-
             // Also sum up volumes of the lines
             auto dist = distance(p1, p2);
             auto vol = pi * std::pow(radii[lineIdx], 2.0) * dist;
@@ -254,11 +247,8 @@ namespace nogo
 
         // A criterion is required to check whether a point is assumed to be an end-point of a segment.
         auto isEndPoint = [&](const VesselNetwork::IndexType& pointIdx) {
-            // A point is NOT an endpoint if it is adjacent to 2 lines and both lines have the same radius. ->
-            // accordingly, it is an endpoint if this is not true.
-            auto degreeCriterion = (vessels.degrees[pointIdx] != 2);
-            auto radiusCriterion = (pointRadii[pointIdx].size() != 1);
-            return degreeCriterion || (splitAtDiffRadii && radiusCriterion);
+            // A point is NOT an endpoint if it is adjacent to 2 lines.
+            return (vessels.degrees[pointIdx] != 2);
         };
 
         // Lets use an in-line function for this. If we would write our own function, it would need a whole bunch of
@@ -523,6 +513,39 @@ namespace nogo
                  << numRemoved << " due to equality to merged vessels." << LogEnd;
         }
 
+        LogD << "Calculating point radii sets." << LogEnd;
+        vessels.pointRadii.resize(vessels.points.size());
+
+        // Iterate each line:
+        // TODO: this misses added lines!
+        for (auto lineIdx : range(lines.size()))
+        {
+            auto p1Idx = lines[lineIdx].first;
+            auto p2Idx = lines[lineIdx].second;
+
+            // Build adjacent radii list
+            vessels.pointRadii[p1Idx].push_back(radii[lineIdx]);
+            vessels.pointRadii[p2Idx].push_back(radii[lineIdx]);
+        }
+
+        /*
+
+        // Disabled Adjecency calculation. Its a O(n^2) algorithm that takes ages to computer for larger datasets. The
+        // only part in the analyzer code where this is needed is to calculate branchpoint diameter, but this can be
+        // calculated differently.
+        //
+        // Was a std::vector< std::vector< VesselNetwork::IndexType > > adjacency; in struct VesselSegments in Data.h
+
+        LogI << "Allocating segment adjacency list." << LogEnd;
+
+        // We map each single point. So, pre-allocate the vector for each point. This still triggers a lot of
+        // reallocations for the (default) constructed vectors. But this is way faster than map+set anyways.
+        vessels.adjacency.resize(vessels.points.size());
+        for (auto pointIdx : range(vessels.points.size()))
+        {
+            vessels.adjacency[pointIdx].reserve(8);
+        }
+
         LogI << "Building segment adjacency list." << LogEnd;
         for (auto segmentIdx : range(vessels.segments.size()))
         {
@@ -530,6 +553,9 @@ namespace nogo
             {
                 continue;
             }
+
+            auto& frontEntry = vessels.adjacency[vessels.segments[segmentIdx].front()];
+            auto& backEntry = vessels.adjacency[vessels.segments[segmentIdx].back()];
             for (auto segmentIdx2 : range(vessels.segments.size()))
             {
                 // skip self
@@ -547,18 +573,19 @@ namespace nogo
                 auto c3 = (vessels.segments[segmentIdx].front() == vessels.segments[segmentIdx2].front());
                 if (c1 || c3)
                 {
-                    vessels.adjacency[vessels.segments[segmentIdx].front()].insert(segmentIdx2);
+                    frontEntry.push_back(segmentIdx2);
                 }
 
                 auto c2 = (vessels.segments[segmentIdx].back() == vessels.segments[segmentIdx2].front());
                 auto c4 = (vessels.segments[segmentIdx].back() == vessels.segments[segmentIdx2].back());
                 if (c2 || c4)
                 {
-                    vessels.adjacency[vessels.segments[segmentIdx].back()].insert(segmentIdx2);
+                    backEntry.push_back(segmentIdx2);
                 }
             }
         }
 
+        LogI << "Updating degrees." << LogEnd;
         // Calculate new degrees since multiple merges might confuse the upper degree calculation
         for (auto item : vessels.adjacency)
         {
@@ -574,6 +601,7 @@ namespace nogo
                 //  vessels.degrees[ pIdx ] = adj.size();
             }
         }
+        */
 
         return vessels;
     }
@@ -709,12 +737,6 @@ namespace nogo
         //
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        // This will keep the data we calculate. Will be written to file eventually.
-        SegmentData localSegmentData;
-        BranchPointData localBranchPointData;
-        VolumeData globalVolumeData;
-        EVDData globalEVDData;
-
         // As the typical programmer is lazy as sh**, we provide some easy access to the members of the vessel network
         const decltype(unorderedVesselData.points)& origPoints = unorderedVesselData.points;
         const decltype(unorderedVesselData.lines)& origLines = unorderedVesselData.lines;
@@ -756,9 +778,6 @@ namespace nogo
         bool mergeCloseBranchPoints = settings.mergeCloseBranchPoints;
         Real maxMergeDistance = settings.maxMergeDistance;
 
-        // Do we split segments in case of multiple radii per segement?
-        bool splitSegmentsAtDiffRadii = false;
-
         // We store the diameter per segment length in a discrete length-span: Define it here:
         Real diameterPerLengthMin = settings.diameterPerLengthMin;
         Real diameterPerLengthMax = settings.diameterPerLengthMax;
@@ -780,7 +799,7 @@ namespace nogo
         // Real evdScale = 0.725586;
         // Real evdScale = 0.729492;
 
-        bool useVVF = (maskVolume != nullptr);
+        bool useMaskVolume = (maskVolume != nullptr);
         bool useEVD = (dtVolume != nullptr);
 
         // We need to apply the cut first. On the cut data, we calculate the statistics
@@ -808,6 +827,12 @@ namespace nogo
 
         LogD << "Original volume of " << wholeDomainVolume << " mm^3" << LogEnd;
         LogD << "Cut volume of " << networkCutDomainVolume << " mm^3" << LogEnd;
+
+        if (unorderedVesselData.volumeOverride > 0)
+        {
+            LogD << "Using volume override: " << unorderedVesselData.volumeOverride << " um^3" << LogEnd;
+            networkCutDomainVolume = unorderedVesselData.volumeOverride;
+        }
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -900,422 +925,469 @@ namespace nogo
 
         LogI << "Reconstructing vessel segments." << LogEnd;
         // And this one contains the derived real network.
-        auto vessels =
-            deriveNetwork(points, lines, radii, splitSegmentsAtDiffRadii, mergeCloseBranchPoints, maxMergeDistance);
+        auto vessels = deriveNetwork(points, lines, radii, mergeCloseBranchPoints, maxMergeDistance);
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //
-        // 3 - Analyze network and derive segment data
+        // {{{ 3 - Analyze network and derive segment data
         //
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        // Count.
-        size_t numSegments = 0;
-        size_t numSegmentsNotBetweenBranchpoints = 0;
-        size_t numCapillarySegments = 0;
-        size_t numNonCapillarySegments = 0;
-
-        // Collect the volumes
-        Real volumeCap = 0.0;
-        Real volumeNonCap = 0.0;
-
-        // Binned segment lenghts
-        Real diameterPerLengthBinWidth =
-            (diameterPerLengthMax - diameterPerLengthMin) / static_cast< Real >(diameterPerLengthNumBins);
-        std::vector< std::vector< Real > > diameterPerLenght(diameterPerLengthNumBins);
-
-        localSegmentData.anglesAdjacency.reserve(vessels.segments.size() * 2);
-
-        struct AdjacentBifVector
         {
-            Vec3 gradient;
-            Real radius;
-        };
-        std::map< size_t, std::vector< AdjacentBifVector > > adjacentBifVectors;
+            SegmentData localSegmentData;
 
-        // auto vecToMajorDirection = []( const auto& a )
-        // {
-        //     int dir = 0;
-        //     if( ( a[1] > a[0] ) && ( a[1] > a[2] ) )
-        //     {
-        //         dir = 1;
-        //     }
-        //     else if( ( a[2] > a[0] ) && ( a[2] > a[1] ) )
-        //     {
-        //         dir = 2;
-        //     }
-        //
-        //     return dir;
-        // };
+            // Count.
+            size_t numSegments = 0;
+            size_t numSegmentsNotBetweenBranchpoints = 0;
+            size_t numCapillarySegments = 0;
+            size_t numNonCapillarySegments = 0;
 
-        // We have a network -> copy its data and calc if needed
-        for (auto segmentIdx : range(vessels.segments.size()))
-        {
-            if (vessels.removed[segmentIdx])
+            // Collect the volumes
+            Real volumeCap = 0.0;
+            Real volumeNonCap = 0.0;
+
+            // Binned segment lenghts
+            Real diameterPerLengthBinWidth =
+                (diameterPerLengthMax - diameterPerLengthMin) / static_cast< Real >(diameterPerLengthNumBins);
+            std::vector< std::vector< Real > > diameterPerLenght(diameterPerLengthNumBins);
+
+            localSegmentData.anglesAdjacency.reserve(vessels.segments.size() * 2);
+
+            struct AdjacentBifVector
             {
-                continue;
-            }
+                Vec3 gradient;
+                Real radius;
+            };
+            std::map< size_t, std::vector< AdjacentBifVector > > adjacentBifVectors;
 
-            auto&& segment = vessels.segments[segmentIdx];
+            // auto vecToMajorDirection = []( const auto& a )
+            // {
+            //     int dir = 0;
+            //     if( ( a[1] > a[0] ) && ( a[1] > a[2] ) )
+            //     {
+            //         dir = 1;
+            //     }
+            //     else if( ( a[2] > a[0] ) && ( a[2] > a[1] ) )
+            //     {
+            //         dir = 2;
+            //     }
+            //
+            //     return dir;
+            // };
 
-            if ((vessels.degrees[segment.front()] < 3) || (vessels.degrees[segment.back()] < 3))
+            // We have a network -> copy its data and calc if needed
+            for (auto segmentIdx : range(vessels.segments.size()))
             {
-                numSegmentsNotBetweenBranchpoints++;
-                // continue;
-            }
-
-            // All containers have the same size. As we push back, but skip some segments, segmentIDX and the real index
-            // in these containers may be different -> store in a map
-            auto realIdx = localSegmentData.directLengths.size();
-            localSegmentData.idxMap[segmentIdx] = realIdx;
-
-            // Length
-            auto realLength = vessels.length[segmentIdx];
-            localSegmentData.lengths.push_back(realLength);
-
-            // Direct distance
-            auto directDistance = distance(vessels.points[segment.front()], vessels.points[segment.back()]);
-            localSegmentData.directLengths.push_back(directDistance);
-
-            // Tortuosity and direction
-            if (directDistance > 0.0)
-            {
-                auto tortuosity = realLength / directDistance;
-                if (segment.front() == segment.back())
+                if (vessels.removed[segmentIdx])
                 {
-                    LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
+                    continue;
+                }
+
+                auto&& segment = vessels.segments[segmentIdx];
+
+                if ((vessels.degrees[segment.front()] < 3) || (vessels.degrees[segment.back()] < 3))
+                {
+                    numSegmentsNotBetweenBranchpoints++;
+                    // continue;
+                }
+
+                // All containers have the same size. As we push back, but skip some segments, segmentIDX and the real
+                // index in these containers may be different -> store in a map
+                auto realIdx = localSegmentData.directLengths.size();
+                localSegmentData.idxMap[segmentIdx] = realIdx;
+
+                // Length
+                auto realLength = vessels.length[segmentIdx];
+                localSegmentData.lengths.push_back(realLength);
+
+                // Direct distance
+                auto directDistance = distance(vessels.points[segment.front()], vessels.points[segment.back()]);
+                localSegmentData.directLengths.push_back(directDistance);
+
+                // Tortuosity and direction
+                if (directDistance > 0.0)
+                {
+                    auto tortuosity = realLength / directDistance;
+                    if (segment.front() == segment.back())
+                    {
+                        LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
+                    }
+                    else
+                    {
+                        localSegmentData.tortuosity.push_back(tortuosity);
+                    }
                 }
                 else
                 {
-                    localSegmentData.tortuosity.push_back(tortuosity);
+                    LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
                 }
+
+                // Radius and Diameter ... well this can be a problem. How to handle multiple radii for a single
+                // segment?
+                size_t sumRadii = 0;
+                auto radius = std::accumulate(vessels.radii[segmentIdx].begin(), vessels.radii[segmentIdx].end(), 0.0,
+                                              [&](auto&& a, auto&& b) {
+                                                  sumRadii += b.second;
+                                                  return a + b.first * static_cast< Real >(b.second);
+                                              }) /
+                              static_cast< Real >(sumRadii);
+
+                auto isACapillary = isCapillary(radius);
+
+                // v = pi * r^2 * h
+                Real vol = pi * std::pow(radius, 2.0) * realLength;
+
+                localSegmentData.radiiSingle[segmentIdx] = radius;
+                localSegmentData.radius.push_back(radius);
+                localSegmentData.diameter.push_back(radius * 2.0);
+                localSegmentData.isCapillary.push_back(isACapillary);
+                localSegmentData.volume.push_back(vol);
+
+                if ((directDistance > 0.0) && (segment.front() != segment.back()))
+                {
+                    // Orientation vector for segments is the vector between end and start
+                    auto segGradient = difference(vessels.points[segment.back()], vessels.points[segment.front()]);
+                    auto segLen = length(segGradient);
+                    auto segNormalizedGradient = scale(segGradient, 1.0 / Real(segLen));
+
+                    if (segLen > 0.0)
+                    {
+                        // segGradient is from front (p1) to back (p2)
+                        if (vessels.degrees[segment.front()] > 2)
+                        {
+                            adjacentBifVectors[segment.front()].emplace_back(
+                                AdjacentBifVector{segNormalizedGradient, radius});
+                        }
+                        if (vessels.degrees[segment.back()] > 2)
+                        {
+                            adjacentBifVectors[segment.back()].emplace_back(
+                                AdjacentBifVector{scale(segNormalizedGradient, -1.0), radius});
+                        }
+                    }
+                }
+
+                // Some stats
+                numCapillarySegments += isACapillary ? 1 : 0;
+                numNonCapillarySegments += !isACapillary ? 1 : 0;
+                numSegments++;
+
+                // Sum up the volumes
+                volumeCap += isACapillary ? vol : 0.0;
+                volumeNonCap += !isACapillary ? vol : 0.0;
+
+                // It might be of interest to get the mean diameter for a segment length. So, collect the diameters
+                auto binNum =
+                    calcBinNum(realLength, diameterPerLengthNumBins, diameterPerLengthMin, diameterPerLengthMax);
+                if ((binNum < 0) || (binNum >= diameterPerLengthNumBins))
+                {
+                    continue;
+                }
+                diameterPerLenght[binNum].push_back(radius * 2.0);
+            }
+
+            localSegmentData.segmentDensity = static_cast< Real >(numSegments) / networkCutDomainVolume;
+            localSegmentData.segmentDensityCapillary =
+                static_cast< Real >(numCapillarySegments) / networkCutDomainVolume;
+            localSegmentData.segmentDensityNonCapillary =
+                static_cast< Real >(numNonCapillarySegments) / networkCutDomainVolume;
+
+            localSegmentData.numSegments = numSegments;
+            localSegmentData.numCapillarySegments = numCapillarySegments;
+            localSegmentData.numNonCapillarySegments = numNonCapillarySegments;
+
+            // Accumulate bins and calc mean per bin
+            localSegmentData.meanDiameterPerLength.resize(diameterPerLengthNumBins);
+            {
+                size_t binNum = 0;
+                std::generate(localSegmentData.meanDiameterPerLength.begin(),
+                              localSegmentData.meanDiameterPerLength.end(), [&]() {
+                                  // Calc mean:
+                                  auto mean = std::accumulate(diameterPerLenght[binNum].begin(),
+                                                              diameterPerLenght[binNum].end(), Real());
+                                  if (diameterPerLenght[binNum].size() == 0)
+                                  {
+                                      return 0.0;
+                                  }
+                                  mean /= static_cast< Real >(diameterPerLenght[binNum].size());
+                                  binNum++;
+
+                                  return mean;
+                              });
+            }
+
+            localSegmentData.meanDiameterPerLengthBinCenters.resize(diameterPerLengthNumBins);
+            {
+                size_t binNum = 0;
+                std::generate(localSegmentData.meanDiameterPerLengthBinCenters.begin(),
+                              localSegmentData.meanDiameterPerLengthBinCenters.end(), [&]() {
+                                  Real center = diameterPerLengthMin + (diameterPerLengthBinWidth / 2.0) +
+                                                (static_cast< Real >(binNum) * diameterPerLengthBinWidth);
+                                  binNum++;
+                                  return center;
+                              });
+            }
+
+            LogD << numSegmentsNotBetweenBranchpoints << " of " << numSegments
+                 << " segments are not between branchpoints." << LogEnd;
+
+            // Calculate segment angles at branch points
+            for (auto item : adjacentBifVectors)
+            {
+                // const auto& pIdx = item.first;
+                auto& adjBifVectors = item.second;
+
+                std::sort(adjBifVectors.begin(), adjBifVectors.end(),
+                          [](const auto& a, const auto& b) { return a.radius > b.radius; });
+
+                for (auto adjVecIdx : range(adjBifVectors.size()))
+                {
+                    const auto& refVec = adjBifVectors[adjVecIdx];
+                    for (auto relVecIdx : range(adjVecIdx + 1, adjBifVectors.size()))
+                    {
+                        const auto& relVec = adjBifVectors[relVecIdx];
+                        auto angle = degree(refVec.gradient, relVec.gradient);
+
+                        localSegmentData.anglesAdjacency.addByDiameter(relVec.radius * 2.0, angle,
+                                                                       isCapillary(relVec.radius));
+                    }
+                }
+            }
+
+            LogI << "Writing local segment data ..." << LogEnd;
+            write(outputDir, localSegmentData);
+        }
+
+        // }}}
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // {{{ 4 - Analyze network and derive branchpoint data
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        {
+            BranchPointData localBranchPointData;
+
+            auto highestDegree = *std::max_element(vessels.degrees.begin(), vessels.degrees.end());
+
+            // The highest degree to include into the statistics
+            auto maxDegree = restrictDegree ? std::min(highestDegree, maxBranchpointDegree) : highestDegree;
+
+            // Reserve some space -> reduce allocations during loop
+            localBranchPointData.degrees.reserve(vessels.points.size());
+
+            // This collects some info used for user debug
+            std::map< size_t, size_t > branchPointCountByDegree;
+
+            // As points are shared, we need to keep track which point was handled already.
+            std::map< size_t, bool > handledPoint;
+
+            LogI << "Building Branch Point Info" << LogEnd;
+            // We have a network -> each segments start/end is either a branch point or a "finger" - endpoint
+            for (auto segmentIdx : range(vessels.segments.size()))
+            {
+                if (vessels.removed[segmentIdx])
+                {
+                    continue;
+                }
+
+                auto&& segment = vessels.segments[segmentIdx];
+                auto p1Idx = segment.front();
+                auto p2Idx = segment.back();
+
+                for (auto pIdx : std::vector< VesselNetwork::IndexType >{{p1Idx, p2Idx}})
+                {
+                    if (!handledPoint[pIdx])
+                    {
+                        handledPoint[pIdx] = true;
+                        auto degree =
+                            mapLargerToMax ? std::min(vessels.degrees[pIdx], maxDegree) : vessels.degrees[pIdx];
+                        branchPointCountByDegree[degree]++;
+
+                        // is it a branch point?
+                        if ((degree > 2) && (degree <= maxDegree))
+                        {
+                            // Keep a map between the real point index and the branch point index used in the
+                            // branchPointData struct
+                            localBranchPointData.idxMap[pIdx] = localBranchPointData.degrees.size();
+
+                            // Degrees
+                            localBranchPointData.degrees.push_back(degree);
+
+                            // To get the radius, we need to check all the radii of all adjacent segments
+                            auto maxRadiusIter =
+                                std::max_element(vessels.pointRadii[pIdx].begin(), vessels.pointRadii[pIdx].end());
+                            auto maxRadius = Real();
+                            if (maxRadiusIter == vessels.pointRadii[pIdx].end())
+                            {
+                                LogW << "No radius defined for point: " << pIdx << LogEnd;
+                            }
+                            else
+                            {
+                                maxRadius = *maxRadiusIter;
+                            }
+
+                            // Diameter and capillary
+                            localBranchPointData.diameter.push_back(maxRadius * 2.0);
+                            bool isACapillary = isCapillary(maxRadius);
+                            localBranchPointData.isCapillary.push_back(isACapillary);
+
+                            // Count for density
+                            localBranchPointData.branchPointDensity += 1.0;
+                            localBranchPointData.branchPointDegree3Density += (degree == 3) ? 1.0 : 0.0;
+                            localBranchPointData.branchPointDegree4Density += (degree == 4) ? 1.0 : 0.0;
+
+                            // Count and diff between capillary and non-capillary
+                            localBranchPointData.branchPointDensityCapillary += (isACapillary) ? 1.0 : 0.0;
+                            localBranchPointData.branchPointDegree3DensityCapillary +=
+                                (isACapillary && (degree == 3)) ? 1.0 : 0.0;
+                            localBranchPointData.branchPointDegree4DensityCapillary +=
+                                (isACapillary && (degree == 4)) ? 1.0 : 0.0;
+
+                            localBranchPointData.branchPointDensityNonCapillary += (!isACapillary) ? 1.0 : 0.0;
+                            localBranchPointData.branchPointDegree3DensityNonCapillary +=
+                                (!isACapillary && (degree == 3)) ? 1.0 : 0.0;
+                            localBranchPointData.branchPointDegree4DensityNonCapillary +=
+                                (!isACapillary && (degree == 4)) ? 1.0 : 0.0;
+
+                            // Also accumulate the degrees into the mean values
+                            localBranchPointData.degreeMean += degree;
+                            localBranchPointData.degreeMeanCapillary += (isACapillary) ? degree : 0.0;
+                            localBranchPointData.degreeMeanNonCapillary += (!isACapillary) ? degree : 0.0;
+                        }
+                    }
+                }
+            }
+
+            LogI << "Building Branch Point Info: derived values" << LogEnd;
+
+            // Branch Degree Means
+            // NOTE: the densities are counters and not yet scaled for volume.
+            localBranchPointData.degreeMean /= localBranchPointData.branchPointDensity;
+            localBranchPointData.degreeMeanCapillary /= localBranchPointData.branchPointDensityCapillary;
+            localBranchPointData.degreeMeanNonCapillary /= localBranchPointData.branchPointDensityNonCapillary;
+
+            // Relative to volume:
+            localBranchPointData.branchPointDensity /= networkCutDomainVolume;
+            localBranchPointData.branchPointDegree3Density =
+                (localBranchPointData.branchPointDegree3Density > 0.0)
+                    ? localBranchPointData.branchPointDegree3Density / networkCutDomainVolume
+                    : 0.0;
+            localBranchPointData.branchPointDegree4Density =
+                (localBranchPointData.branchPointDegree4Density > 0.0)
+                    ? localBranchPointData.branchPointDegree4Density / networkCutDomainVolume
+                    : 0.0;
+
+            localBranchPointData.branchPointDensityCapillary /= networkCutDomainVolume;
+            localBranchPointData.branchPointDegree3DensityCapillary =
+                (localBranchPointData.branchPointDegree3DensityCapillary > 0.0)
+                    ? localBranchPointData.branchPointDegree3DensityCapillary / networkCutDomainVolume
+                    : 0.0;
+            localBranchPointData.branchPointDegree4DensityCapillary =
+                (localBranchPointData.branchPointDegree4DensityCapillary > 0.0)
+                    ? localBranchPointData.branchPointDegree4DensityCapillary / networkCutDomainVolume
+                    : 0.0;
+
+            localBranchPointData.branchPointDensityNonCapillary /= networkCutDomainVolume;
+            localBranchPointData.branchPointDegree3DensityNonCapillary =
+                (localBranchPointData.branchPointDegree3DensityNonCapillary > 0.0)
+                    ? localBranchPointData.branchPointDegree3DensityNonCapillary / networkCutDomainVolume
+                    : 0.0;
+            localBranchPointData.branchPointDegree4DensityNonCapillary =
+                (localBranchPointData.branchPointDegree4DensityNonCapillary > 0.0)
+                    ? localBranchPointData.branchPointDegree4DensityNonCapillary / networkCutDomainVolume
+                    : 0.0;
+
+            LogI << "Branch Point Info: ";
+            for (auto deg : range(3, highestDegree + 1))
+            {
+                if (branchPointCountByDegree[deg] != 0)
+                {
+                    LogContinue << "d" << deg << " = " << branchPointCountByDegree[deg] << ", ";
+                }
+            }
+            LogContinue << LogEnd;
+            LogI << "Branch Degree Means - all: " << localBranchPointData.degreeMean
+                 << " - capillary: " << localBranchPointData.degreeMeanCapillary
+                 << " - non-capillary: " << localBranchPointData.degreeMeanNonCapillary << LogEnd;
+
+            LogI << "Writing local branchpoint data ..." << LogEnd;
+            write(outputDir, localBranchPointData);
+        }
+        // }}}
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // {{{ 5 - Analyze volume
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        {
+            // This will keep the data we calculate. Will be written to file eventually.
+            VolumeData globalVolumeData{};
+
+            // The total volume of all segments
+            auto segmentVolume = vessels.volumeCapillaries + vessels.volumeNonCapillaries;
+
+            // Use the mask to derive vvf?
+            if (useMaskVolume)
+            {
+                LogI << "Using VVF from volume mask." << LogEnd;
+
+                auto cutVolumeVVFBB = cutBoundingBox(maskVolume->boundingBox, volumeCutXYVVF, volumeCutZVVF);
+                LogD << "Cut Volume Bounding Box: [ ( " << cutVolumeVVFBB.first[0] << ", " << cutVolumeVVFBB.first[1]
+                     << ", " << cutVolumeVVFBB.first[2] << " ), ( " << cutVolumeVVFBB.second[0] << ", "
+                     << cutVolumeVVFBB.second[1] << ", " << cutVolumeVVFBB.second[2] << " ) ]" << LogEnd;
+                auto cutVolumeVVFLocalizedBB =
+                    cutBoundingBox(maskVolume->boundingBox, volumeCutXYVVFLocalized, volumeCutZVVFLocalized);
+                LogD << "Cut Volume Bounding Box for localized evaluation: [ ( " << cutVolumeVVFLocalizedBB.first[0]
+                     << ", " << cutVolumeVVFLocalizedBB.first[1] << ", " << cutVolumeVVFLocalizedBB.first[2] << " ), ( "
+                     << cutVolumeVVFLocalizedBB.second[0] << ", " << cutVolumeVVFLocalizedBB.second[1] << ", "
+                     << cutVolumeVVFLocalizedBB.second[2] << " ) ]" << LogEnd;
+
+                LogI << "Calculating vessel volume fractions." << LogEnd;
+                // This is mostly trivial.
+                // Iterate all voxels and count using the given mask
+                size_t vesselVoxelCount = 0;
+                auto volumeVVFCylinderVoxelCount =
+                    processVoxels(cutVolumeVVFBB, isCylindric, [&](auto&& x, auto&& y, auto&& z) {
+                        auto mask = maskVolume->data[maskVolume->index(x, y, z)];
+                        vesselVoxelCount += (mask == 0) ? 0 : 1;
+                    });
+
+                // This is mostly trivial. Do for another BB for localized VVF info
+                // Iterate all voxels and count using the given mask
+                size_t vesselVoxelLocalCount = 0;
+                auto volumeVVFLocalCylinderVoxelCount =
+                    processVoxels(cutVolumeVVFLocalizedBB, isCylindric, [&](auto&& x, auto&& y, auto&& z) {
+                        auto mask = maskVolume->data[maskVolume->index(x, y, z)];
+                        vesselVoxelLocalCount += (mask == 0) ? 0 : 1;
+                    });
+
+                // The fraction:
+                globalVolumeData.vesselVolumeFraction =
+                    static_cast< Real >(vesselVoxelCount) / static_cast< Real >(volumeVVFCylinderVoxelCount);
+
+                LogD << "Volume contains " << vesselVoxelCount << " vessel voxels in a total of "
+                     << volumeVVFCylinderVoxelCount << " voxels." << LogEnd;
+                LogD << "Network-local Volume contains " << vesselVoxelLocalCount << " vessel voxels in a total of "
+                     << volumeVVFLocalCylinderVoxelCount << " voxels." << LogEnd;
+
+                // We know the percentage of capillaries -> so we derive the fractions for capillaries and
+                // non-capillaries accordingly: Keep in mind: this is not perfectly accurate ... but suffices for the
+                // statistics.
+                globalVolumeData.vesselVolumeFractionLocal =
+                    static_cast< Real >(vesselVoxelLocalCount) / static_cast< Real >(volumeVVFLocalCylinderVoxelCount);
             }
             else
             {
-                LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
+                LogI << "Using VVF from network segment volumes." << LogEnd;
+                LogI << "Segment Volume: " << segmentVolume << ", Network Volume: " << networkCutDomainVolume << LogEnd;
+                globalVolumeData.vesselVolumeFractionLocal = segmentVolume / networkCutDomainVolume;
+                globalVolumeData.vesselVolumeFraction = globalVolumeData.vesselVolumeFractionLocal;
             }
-
-            // Radius and Diameter ... well this can be a problem. How to handle multiple radii for a single segment?
-            size_t sumRadii = 0;
-            auto radius = std::accumulate(vessels.radii[segmentIdx].begin(), vessels.radii[segmentIdx].end(), 0.0,
-                                          [&](auto&& a, auto&& b) {
-                                              sumRadii += b.second;
-                                              return a + b.first * static_cast< Real >(b.second);
-                                          }) /
-                          static_cast< Real >(sumRadii);
-
-            auto isACapillary = isCapillary(radius);
-
-            // v = pi * r^2 * h
-            Real vol = pi * std::pow(radius, 2.0) * realLength;
-
-            localSegmentData.radiiSingle[segmentIdx] = radius;
-            localSegmentData.radius.push_back(radius);
-            localSegmentData.diameter.push_back(radius * 2.0);
-            localSegmentData.isCapillary.push_back(isACapillary);
-            localSegmentData.volume.push_back(vol);
-
-            if ((directDistance > 0.0) && (segment.front() != segment.back()))
-            {
-                // Orientation vector for segments is the vector between end and start
-                auto segGradient = difference(vessels.points[segment.back()], vessels.points[segment.front()]);
-                auto segLen = length(segGradient);
-                auto segNormalizedGradient = scale(segGradient, 1.0 / Real(segLen));
-
-                if (segLen > 0.0)
-                {
-                    // segGradient is from front (p1) to back (p2)
-                    if (vessels.degrees[segment.front()] > 2)
-                    {
-                        adjacentBifVectors[segment.front()].emplace_back(
-                            AdjacentBifVector{segNormalizedGradient, radius});
-                    }
-                    if (vessels.degrees[segment.back()] > 2)
-                    {
-                        adjacentBifVectors[segment.back()].emplace_back(
-                            AdjacentBifVector{scale(segNormalizedGradient, -1.0), radius});
-                    }
-                }
-            }
-
-            // Some stats
-            numCapillarySegments += isACapillary ? 1 : 0;
-            numNonCapillarySegments += !isACapillary ? 1 : 0;
-            numSegments++;
-
-            // Sum up the volumes
-            volumeCap += isACapillary ? vol : 0.0;
-            volumeNonCap += !isACapillary ? vol : 0.0;
-
-            // It might be of interest to get the mean diameter for a segment length. So, collect the diameters
-            auto binNum = calcBinNum(realLength, diameterPerLengthNumBins, diameterPerLengthMin, diameterPerLengthMax);
-            if ((binNum < 0) || (binNum >= diameterPerLengthNumBins))
-            {
-                continue;
-            }
-            diameterPerLenght[binNum].push_back(radius * 2.0);
-        }
-
-        localSegmentData.segmentDensity = static_cast< Real >(numSegments) / networkCutDomainVolume;
-        localSegmentData.segmentDensityCapillary = static_cast< Real >(numCapillarySegments) / networkCutDomainVolume;
-        localSegmentData.segmentDensityNonCapillary =
-            static_cast< Real >(numNonCapillarySegments) / networkCutDomainVolume;
-
-        localSegmentData.numSegments = numSegments;
-        localSegmentData.numCapillarySegments = numCapillarySegments;
-        localSegmentData.numNonCapillarySegments = numNonCapillarySegments;
-
-        // Accumulate bins and calc mean per bin
-        localSegmentData.meanDiameterPerLength.resize(diameterPerLengthNumBins);
-        {
-            size_t binNum = 0;
-            std::generate(
-                localSegmentData.meanDiameterPerLength.begin(), localSegmentData.meanDiameterPerLength.end(), [&]() {
-                    // Calc mean:
-                    auto mean =
-                        std::accumulate(diameterPerLenght[binNum].begin(), diameterPerLenght[binNum].end(), Real());
-                    if (diameterPerLenght[binNum].size() == 0)
-                    {
-                        return 0.0;
-                    }
-                    mean /= static_cast< Real >(diameterPerLenght[binNum].size());
-                    binNum++;
-
-                    return mean;
-                });
-        }
-
-        localSegmentData.meanDiameterPerLengthBinCenters.resize(diameterPerLengthNumBins);
-        {
-            size_t binNum = 0;
-            std::generate(localSegmentData.meanDiameterPerLengthBinCenters.begin(),
-                          localSegmentData.meanDiameterPerLengthBinCenters.end(), [&]() {
-                              Real center = diameterPerLengthMin + (diameterPerLengthBinWidth / 2.0) +
-                                            (static_cast< Real >(binNum) * diameterPerLengthBinWidth);
-                              binNum++;
-                              return center;
-                          });
-        }
-
-        LogD << numSegmentsNotBetweenBranchpoints << " of " << numSegments << " segments are not between branchpoints."
-             << LogEnd;
-
-        // Calculate segment angles at branch points
-        for (auto item : adjacentBifVectors)
-        {
-            // const auto& pIdx = item.first;
-            auto& adjBifVectors = item.second;
-
-            std::sort(adjBifVectors.begin(), adjBifVectors.end(),
-                      [](const auto& a, const auto& b) { return a.radius > b.radius; });
-
-            for (auto adjVecIdx : range(adjBifVectors.size()))
-            {
-                const auto& refVec = adjBifVectors[adjVecIdx];
-                for (auto relVecIdx : range(adjVecIdx + 1, adjBifVectors.size()))
-                {
-                    const auto& relVec = adjBifVectors[relVecIdx];
-                    auto angle = degree(refVec.gradient, relVec.gradient);
-
-                    localSegmentData.anglesAdjacency.addByDiameter(relVec.radius * 2.0, angle,
-                                                                   isCapillary(relVec.radius));
-                }
-            }
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 4 - Analyze network and derive branchpoint data
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        auto highestDegree = *std::max_element(vessels.degrees.begin(), vessels.degrees.end());
-
-        // The highest degree to include into the statistics
-        auto maxDegree = restrictDegree ? std::min(highestDegree, maxBranchpointDegree) : highestDegree;
-
-        // Reserve some space -> reduce allocations during loop
-        localBranchPointData.degrees.reserve(vessels.points.size());
-
-        // This collects some info used for user debug
-        std::map< size_t, size_t > branchPointCountByDegree;
-
-        // As points are shared, we need to keep track which point was handled already.
-        std::map< size_t, bool > handledPoint;
-
-        // We have a network -> each segments start/end is either a branch point or a "finger" - endpoint
-        for (auto segmentIdx : range(vessels.segments.size()))
-        {
-            if (vessels.removed[segmentIdx])
-            {
-                continue;
-            }
-
-            auto&& segment = vessels.segments[segmentIdx];
-            auto p1Idx = segment.front();
-            auto p2Idx = segment.back();
-
-            for (auto pIdx : std::vector< VesselNetwork::IndexType >{{p1Idx, p2Idx}})
-            {
-                if (!handledPoint[pIdx])
-                {
-                    handledPoint[pIdx] = true;
-                    auto degree = mapLargerToMax ? std::min(vessels.degrees[pIdx], maxDegree) : vessels.degrees[pIdx];
-                    branchPointCountByDegree[degree]++;
-
-                    // is it a branch point?
-                    if ((degree > 2) && (degree <= maxDegree))
-                    {
-                        // Keep a map between the real point index and the branch point index used in the
-                        // branchPointData struct
-                        localBranchPointData.idxMap[pIdx] = localBranchPointData.degrees.size();
-
-                        // Degrees
-                        localBranchPointData.degrees.push_back(degree);
-
-                        // To get the radius, we need to check all the radii of all adjacent segments
-                        Real maxRadius = 0.0;
-                        for (auto adjacentSegIdx : vessels.adjacency[pIdx])
-                        {
-                            maxRadius = std::max(maxRadius, localSegmentData.radiiSingle[adjacentSegIdx]);
-                        }
-
-                        // Diameter and capillary
-                        localBranchPointData.diameter.push_back(maxRadius * 2.0);
-                        bool isACapillary = isCapillary(maxRadius);
-                        localBranchPointData.isCapillary.push_back(isACapillary);
-
-                        // Count for density
-                        localBranchPointData.branchPointDensity += 1.0;
-                        localBranchPointData.branchPointDegree3Density += (degree == 3) ? 1.0 : 0.0;
-                        localBranchPointData.branchPointDegree4Density += (degree == 4) ? 1.0 : 0.0;
-
-                        // Count and diff between capillary and non-capillary
-                        localBranchPointData.branchPointDensityCapillary += (isACapillary) ? 1.0 : 0.0;
-                        localBranchPointData.branchPointDegree3DensityCapillary +=
-                            (isACapillary && (degree == 3)) ? 1.0 : 0.0;
-                        localBranchPointData.branchPointDegree4DensityCapillary +=
-                            (isACapillary && (degree == 4)) ? 1.0 : 0.0;
-
-                        localBranchPointData.branchPointDensityNonCapillary += (!isACapillary) ? 1.0 : 0.0;
-                        localBranchPointData.branchPointDegree3DensityNonCapillary +=
-                            (!isACapillary && (degree == 3)) ? 1.0 : 0.0;
-                        localBranchPointData.branchPointDegree4DensityNonCapillary +=
-                            (!isACapillary && (degree == 4)) ? 1.0 : 0.0;
-
-                        // Also accumulate the degrees into the mean values
-                        localBranchPointData.degreeMean += degree;
-                        localBranchPointData.degreeMeanCapillary += (isACapillary) ? degree : 0.0;
-                        localBranchPointData.degreeMeanNonCapillary += (!isACapillary) ? degree : 0.0;
-                    }
-                }
-            }
-        }
-
-        // Branch Degree Means
-        // NOTE: the densities are counters and not yet scaled for volume.
-        localBranchPointData.degreeMean /= localBranchPointData.branchPointDensity;
-        localBranchPointData.degreeMeanCapillary /= localBranchPointData.branchPointDensityCapillary;
-        localBranchPointData.degreeMeanNonCapillary /= localBranchPointData.branchPointDensityNonCapillary;
-
-        // Relative to volume:
-        localBranchPointData.branchPointDensity /= networkCutDomainVolume;
-        localBranchPointData.branchPointDegree3Density =
-            (localBranchPointData.branchPointDegree3Density > 0.0)
-                ? localBranchPointData.branchPointDegree3Density / networkCutDomainVolume
-                : 0.0;
-        localBranchPointData.branchPointDegree4Density =
-            (localBranchPointData.branchPointDegree4Density > 0.0)
-                ? localBranchPointData.branchPointDegree4Density / networkCutDomainVolume
-                : 0.0;
-
-        localBranchPointData.branchPointDensityCapillary /= networkCutDomainVolume;
-        localBranchPointData.branchPointDegree3DensityCapillary =
-            (localBranchPointData.branchPointDegree3DensityCapillary > 0.0)
-                ? localBranchPointData.branchPointDegree3DensityCapillary / networkCutDomainVolume
-                : 0.0;
-        localBranchPointData.branchPointDegree4DensityCapillary =
-            (localBranchPointData.branchPointDegree4DensityCapillary > 0.0)
-                ? localBranchPointData.branchPointDegree4DensityCapillary / networkCutDomainVolume
-                : 0.0;
-
-        localBranchPointData.branchPointDensityNonCapillary /= networkCutDomainVolume;
-        localBranchPointData.branchPointDegree3DensityNonCapillary =
-            (localBranchPointData.branchPointDegree3DensityNonCapillary > 0.0)
-                ? localBranchPointData.branchPointDegree3DensityNonCapillary / networkCutDomainVolume
-                : 0.0;
-        localBranchPointData.branchPointDegree4DensityNonCapillary =
-            (localBranchPointData.branchPointDegree4DensityNonCapillary > 0.0)
-                ? localBranchPointData.branchPointDegree4DensityNonCapillary / networkCutDomainVolume
-                : 0.0;
-
-        LogI << "Branch Point Info: ";
-        for (auto deg : range(3, highestDegree + 1))
-        {
-            if (branchPointCountByDegree[deg] != 0)
-            {
-                LogContinue << "d" << deg << " = " << branchPointCountByDegree[deg] << ", ";
-            }
-        }
-        LogContinue << LogEnd;
-        LogI << "Branch Degree Means - all: " << localBranchPointData.degreeMean
-             << " - capillary: " << localBranchPointData.degreeMeanCapillary
-             << " - non-capillary: " << localBranchPointData.degreeMeanNonCapillary << LogEnd;
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 5 - Analyze volume
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        if (!useVVF)
-        {
-            LogI << "Skipping calculating vessel volume fractions." << LogEnd;
-        }
-        else
-        {
-            auto cutVolumeVVFBB = cutBoundingBox(maskVolume->boundingBox, volumeCutXYVVF, volumeCutZVVF);
-            LogD << "Cut Volume Bounding Box: [ ( " << cutVolumeVVFBB.first[0] << ", " << cutVolumeVVFBB.first[1]
-                 << ", " << cutVolumeVVFBB.first[2] << " ), ( " << cutVolumeVVFBB.second[0] << ", "
-                 << cutVolumeVVFBB.second[1] << ", " << cutVolumeVVFBB.second[2] << " ) ]" << LogEnd;
-            auto cutVolumeVVFLocalizedBB =
-                cutBoundingBox(maskVolume->boundingBox, volumeCutXYVVFLocalized, volumeCutZVVFLocalized);
-            LogD << "Cut Volume Bounding Box for localized evaluation: [ ( " << cutVolumeVVFLocalizedBB.first[0] << ", "
-                 << cutVolumeVVFLocalizedBB.first[1] << ", " << cutVolumeVVFLocalizedBB.first[2] << " ), ( "
-                 << cutVolumeVVFLocalizedBB.second[0] << ", " << cutVolumeVVFLocalizedBB.second[1] << ", "
-                 << cutVolumeVVFLocalizedBB.second[2] << " ) ]" << LogEnd;
-
-            LogI << "Calculating vessel volume fractions." << LogEnd;
-            // This is mostly trivial.
-            // Iterate all voxels and count using the given mask
-            size_t vesselVoxelCount = 0;
-            auto volumeVVFCylinderVoxelCount =
-                processVoxels(cutVolumeVVFBB, isCylindric, [&](auto&& x, auto&& y, auto&& z) {
-                    auto mask = maskVolume->data[maskVolume->index(x, y, z)];
-                    vesselVoxelCount += (mask == 0) ? 0 : 1;
-                });
-
-            // This is mostly trivial. Do for another BB for localized VVF info
-            // Iterate all voxels and count using the given mask
-            size_t vesselVoxelLocalCount = 0;
-            auto volumeVVFLocalCylinderVoxelCount =
-                processVoxels(cutVolumeVVFLocalizedBB, isCylindric, [&](auto&& x, auto&& y, auto&& z) {
-                    auto mask = maskVolume->data[maskVolume->index(x, y, z)];
-                    vesselVoxelLocalCount += (mask == 0) ? 0 : 1;
-                });
-
-            // The fraction:
-            globalVolumeData.vesselVolumeFraction =
-                static_cast< Real >(vesselVoxelCount) / static_cast< Real >(volumeVVFCylinderVoxelCount);
 
             // LOCAL !
-
-            // We know the percentage of capillaries -> so we derive the fractions for capillaries and non-capillaries
-            // accordingly: Keep in mind: this is not perfectly accurate ... but suffices for the statistics.
-            globalVolumeData.vesselVolumeFractionLocal =
-                static_cast< Real >(vesselVoxelLocalCount) / static_cast< Real >(volumeVVFLocalCylinderVoxelCount);
-
-            auto segmentVolume = vessels.volumeCapillaries + vessels.volumeNonCapillaries;
             auto capFrac = vessels.volumeCapillaries / segmentVolume;
             auto nonCapFrac = vessels.volumeNonCapillaries / segmentVolume;
 
@@ -1329,149 +1401,141 @@ namespace nogo
             globalVolumeData.vesselVolumeFractionLocalCapillary *= 100.0;
             globalVolumeData.vesselVolumeFractionLocalNonCapillary *= 100.0;
 
-            LogD << "Volume contains " << vesselVoxelCount << " vessel voxels in a total of "
-                 << volumeVVFCylinderVoxelCount << " voxels." << LogEnd;
-            LogD << "Network-local Volume contains " << vesselVoxelLocalCount << " vessel voxels in a total of "
-                 << volumeVVFLocalCylinderVoxelCount << " voxels." << LogEnd;
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 6 - Analyze distance transformed volume
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        if (!useEVD)
-        {
-            LogI << "Skipping calculating EVD fractions." << LogEnd;
-        }
-        else
-        {
-            auto cutVolumeEVDBB = cutBoundingBox(maskVolume->boundingBox, volumeCutXYEVD, volumeCutZEVD);
-            LogD << "Cut Volume Bounding Box for EVD: [ ( " << cutVolumeEVDBB.first[0] << ", "
-                 << cutVolumeEVDBB.first[1] << ", " << cutVolumeEVDBB.first[2] << " ), ( " << cutVolumeEVDBB.second[0]
-                 << ", " << cutVolumeEVDBB.second[1] << ", " << cutVolumeEVDBB.second[2] << " ) ]" << LogEnd;
-
-            LogI << "Calculating EVD fractions." << LogEnd;
-
-            // This is mostly trivial.
-            // Iterate all voxels and count using the given mask
-            size_t evdVoxelsUsed = 0;
-            size_t evdIgnoredByHistogram = 0;
-            size_t evdIgnoredByMinimum = 0;
-            size_t evdIgnoredByMaximum = 0;
-            size_t evdIgnoredByVolumeCrop = 0;
-
-            Real evdHistBinWidth = (evdHistMax - evdHistMin) / static_cast< Real >(evdNumBins);
-
-            // Init the bin container
-            globalEVDData.histBinsCenters.resize(evdNumBins, 0.0);
-            size_t binCenterNum = 0;
-            std::generate(globalEVDData.histBinsCenters.begin(), globalEVDData.histBinsCenters.end(), [&]() {
-                Real center =
-                    evdHistMin + (evdHistBinWidth / 2.0) + (static_cast< Real >(binCenterNum) * evdHistBinWidth);
-                binCenterNum++;
-                return center;
-            });
-
-            std::vector< size_t > evdHistogram(evdNumBins, 0);
-            for (auto z : range(dtVolume->sizeZ))
-            {
-                for (auto y : range(dtVolume->sizeY))
-                {
-                    for (auto x : range(dtVolume->sizeX))
-                    {
-                        // Get the current value
-                        Real evd = evdScale * dtVolume->data[dtVolume->index(x, y, z)];
-                        evdVoxelsUsed++;
-
-                        auto p = Vec3({{static_cast< Real >(x), static_cast< Real >(y), static_cast< Real >(z)}});
-                        if (!pointInVolume(p, cutVolumeEVDBB, isCylindric))
-                        {
-                            evdIgnoredByVolumeCrop++;
-                            continue;
-                        }
-                        if ((evd < minEVD) && useMinEVD)
-                        {
-                            evdIgnoredByMinimum++;
-                            continue;
-                        }
-                        if ((evd > maxEVD) && useMaxEVD)
-                        {
-                            evdIgnoredByMaximum++;
-                            continue;
-                        }
-
-                        globalEVDData.max = std::max(evd, globalEVDData.max);
-                        globalEVDData.mean += evd;
-
-                        // Which bin?
-                        auto binNum = calcBinNum(evd, evdNumBins, evdHistMin, evdHistMax);
-
-                        // Inside the histogram?
-                        if ((binNum < 0) || (binNum >= evdNumBins))
-                        {
-                            evdIgnoredByHistogram++;
-                            continue;
-                        }
-
-                        evdHistogram[binNum]++;
-                    }
-                }
-            }
-
-            // As we want relative amounts, scale by the used voxels and provide some debug output
-            LogD << "Histogram - ignored of " << evdVoxelsUsed << " voxels: " << LogEnd;
-            LogD << " - by volume crop: " << evdIgnoredByVolumeCrop << LogEnd;
-            LogD << " - by defined min: " << evdIgnoredByMinimum << LogEnd;
-            LogD << " - by defined max: " << evdIgnoredByMaximum << LogEnd;
-            LogD << " - by histogram boundaries: " << evdIgnoredByHistogram << LogEnd;
-
-            size_t evdReallyUsed = evdVoxelsUsed - evdIgnoredByHistogram - evdIgnoredByMinimum - evdIgnoredByMaximum -
-                                   evdIgnoredByVolumeCrop;
-            std::vector< Real > evdHistogramPerc(evdNumBins, 0.0);
-            for (auto binNum : range(evdHistogram.size()))
-            {
-                // get the bin range:
-                auto binLeft = evdHistMin + binNum * evdHistBinWidth;
-                auto binRight = evdHistMin + (binNum + 1) * evdHistBinWidth;
-                auto perc = 100.0 * static_cast< Real >(evdHistogram[binNum]) / static_cast< Real >(evdReallyUsed);
-
-                LogD << "[ " << binLeft << ", " << binRight << " )"
-                     << " - " << perc << " ( " << evdHistogram[binNum] << " )" << LogEnd;
-                evdHistogramPerc[binNum] = perc;
-            }
-
-            globalEVDData.mean /= static_cast< Real >(evdVoxelsUsed);
-            LogI << "Calculated EVD histogram. Mean is " << globalEVDData.mean << ", max is " << globalEVDData.max
-                 << "." << LogEnd;
-
-            globalEVDData.histMin = evdHistMin;
-            globalEVDData.histMax = evdHistMax;
-            globalEVDData.histNumBins = evdNumBins;
-
-            globalEVDData.discretized = evdHistogram;
-            globalEVDData.discretizedRelative = evdHistogramPerc;
-        }
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 7 - Writing local data to files
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        LogI << "Writing data ..." << LogEnd;
-        write(outputDir, localBranchPointData);
-        write(outputDir, localSegmentData);
-        write(outputDir, vessels, vessels.points, localSegmentData, localBranchPointData);
-        if (useVVF)
-        {
+            LogI << "Writing volume data data ..." << LogEnd;
             write(outputDir, globalVolumeData);
         }
-        if (useEVD)
+        /// }}}
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // {{{ 6 - Analyze distance transformed volume
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
         {
-            write(outputDir, globalEVDData);
+            EVDData globalEVDData;
+
+            if (!useEVD)
+            {
+                LogI << "Skipping calculating EVD fractions." << LogEnd;
+            }
+            else
+            {
+                auto cutVolumeEVDBB = cutBoundingBox(maskVolume->boundingBox, volumeCutXYEVD, volumeCutZEVD);
+                LogD << "Cut Volume Bounding Box for EVD: [ ( " << cutVolumeEVDBB.first[0] << ", "
+                     << cutVolumeEVDBB.first[1] << ", " << cutVolumeEVDBB.first[2] << " ), ( "
+                     << cutVolumeEVDBB.second[0] << ", " << cutVolumeEVDBB.second[1] << ", " << cutVolumeEVDBB.second[2]
+                     << " ) ]" << LogEnd;
+
+                LogI << "Calculating EVD fractions." << LogEnd;
+
+                // This is mostly trivial.
+                // Iterate all voxels and count using the given mask
+                size_t evdVoxelsUsed = 0;
+                size_t evdIgnoredByHistogram = 0;
+                size_t evdIgnoredByMinimum = 0;
+                size_t evdIgnoredByMaximum = 0;
+                size_t evdIgnoredByVolumeCrop = 0;
+
+                Real evdHistBinWidth = (evdHistMax - evdHistMin) / static_cast< Real >(evdNumBins);
+
+                // Init the bin container
+                globalEVDData.histBinsCenters.resize(evdNumBins, 0.0);
+                size_t binCenterNum = 0;
+                std::generate(globalEVDData.histBinsCenters.begin(), globalEVDData.histBinsCenters.end(), [&]() {
+                    Real center =
+                        evdHistMin + (evdHistBinWidth / 2.0) + (static_cast< Real >(binCenterNum) * evdHistBinWidth);
+                    binCenterNum++;
+                    return center;
+                });
+
+                std::vector< size_t > evdHistogram(evdNumBins, 0);
+                for (auto z : range(dtVolume->sizeZ))
+                {
+                    for (auto y : range(dtVolume->sizeY))
+                    {
+                        for (auto x : range(dtVolume->sizeX))
+                        {
+                            // Get the current value
+                            Real evd = evdScale * dtVolume->data[dtVolume->index(x, y, z)];
+                            evdVoxelsUsed++;
+
+                            auto p = Vec3({{static_cast< Real >(x), static_cast< Real >(y), static_cast< Real >(z)}});
+                            if (!pointInVolume(p, cutVolumeEVDBB, isCylindric))
+                            {
+                                evdIgnoredByVolumeCrop++;
+                                continue;
+                            }
+                            if ((evd < minEVD) && useMinEVD)
+                            {
+                                evdIgnoredByMinimum++;
+                                continue;
+                            }
+                            if ((evd > maxEVD) && useMaxEVD)
+                            {
+                                evdIgnoredByMaximum++;
+                                continue;
+                            }
+
+                            globalEVDData.max = std::max(evd, globalEVDData.max);
+                            globalEVDData.mean += evd;
+
+                            // Which bin?
+                            auto binNum = calcBinNum(evd, evdNumBins, evdHistMin, evdHistMax);
+
+                            // Inside the histogram?
+                            if ((binNum < 0) || (binNum >= evdNumBins))
+                            {
+                                evdIgnoredByHistogram++;
+                                continue;
+                            }
+
+                            evdHistogram[binNum]++;
+                        }
+                    }
+                }
+
+                // As we want relative amounts, scale by the used voxels and provide some debug output
+                LogD << "Histogram - ignored of " << evdVoxelsUsed << " voxels: " << LogEnd;
+                LogD << " - by volume crop: " << evdIgnoredByVolumeCrop << LogEnd;
+                LogD << " - by defined min: " << evdIgnoredByMinimum << LogEnd;
+                LogD << " - by defined max: " << evdIgnoredByMaximum << LogEnd;
+                LogD << " - by histogram boundaries: " << evdIgnoredByHistogram << LogEnd;
+
+                size_t evdReallyUsed = evdVoxelsUsed - evdIgnoredByHistogram - evdIgnoredByMinimum -
+                                       evdIgnoredByMaximum - evdIgnoredByVolumeCrop;
+                std::vector< Real > evdHistogramPerc(evdNumBins, 0.0);
+                for (auto binNum : range(evdHistogram.size()))
+                {
+                    // get the bin range:
+                    auto binLeft = evdHistMin + binNum * evdHistBinWidth;
+                    auto binRight = evdHistMin + (binNum + 1) * evdHistBinWidth;
+                    auto perc = 100.0 * static_cast< Real >(evdHistogram[binNum]) / static_cast< Real >(evdReallyUsed);
+
+                    LogD << "[ " << binLeft << ", " << binRight << " )"
+                         << " - " << perc << " ( " << evdHistogram[binNum] << " )" << LogEnd;
+                    evdHistogramPerc[binNum] = perc;
+                }
+
+                globalEVDData.mean /= static_cast< Real >(evdVoxelsUsed);
+                LogI << "Calculated EVD histogram. Mean is " << globalEVDData.mean << ", max is " << globalEVDData.max
+                     << "." << LogEnd;
+
+                globalEVDData.histMin = evdHistMin;
+                globalEVDData.histMax = evdHistMax;
+                globalEVDData.histNumBins = evdNumBins;
+
+                globalEVDData.discretized = evdHistogram;
+                globalEVDData.discretizedRelative = evdHistogramPerc;
+
+                LogI << "Writing EVD data ..." << LogEnd;
+                write(outputDir, globalEVDData);
+            }
         }
+        // }}}
+
+        // Vessel segments as stld file - this causes enormous files with the latest Nogo v3 data -> skip it
+        // write(outputDir, vessels, vessels.points, localSegmentData, localBranchPointData);
 
         LogI << "Done ..." << LogEnd;
     }
