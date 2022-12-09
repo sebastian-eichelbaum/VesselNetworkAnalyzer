@@ -50,7 +50,7 @@ namespace nogo
         return std::sqrt(std::pow(a[0], 2) + std::pow(a[1], 2) + std::pow(a[2], 2));
     }
 
-    bool operator<=(const Vec3& a, const Vec3& b)
+    inline bool operator<=(const Vec3& a, const Vec3& b)
     {
         return (a[0] <= b[0]) && (a[1] <= b[1]) && (a[2] <= b[2]);
     }
@@ -129,7 +129,10 @@ namespace nogo
     typename PointType::value_type degree(const PointType& aNormalized, const PointType& bNormalized)
     {
         auto d = dot(aNormalized, bNormalized);
-        return 180.0 * std::acos(clamp(d, -1.0, 1.0)) / 3.14159265358979323846;
+        return 180.0 *
+               std::acos(clamp(d, static_cast< typename PointType::value_type >(-1.0),
+                               static_cast< typename PointType::value_type >(1.0))) /
+               static_cast< typename PointType::value_type >(3.14159265358979323846);
     }
 
     //! Midpoint between two given points

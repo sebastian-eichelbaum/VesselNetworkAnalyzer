@@ -40,6 +40,14 @@ namespace nogo
     using SPtr = std::shared_ptr< T >;
 
     /**
+     * Alias for abbreviating the often used std::unique_ptr< Type >.
+     *
+     * \tparam T the type to embed into the shared_ptr.
+     */
+    template < typename T >
+    using UPtr = std::unique_ptr< T >;
+
+    /**
      * Alias for abbreviating the often used std::shared_ptr< Type >.
      *
      * \tparam T the type to embed into the shared_ptr.

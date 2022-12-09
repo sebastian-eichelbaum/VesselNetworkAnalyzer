@@ -493,7 +493,7 @@ namespace nogo
      *
      * \return the vessel network as represented by the file
      */
-    inline SPtr< VesselNetwork > loadVesselNetworkVTK(const std::string& filename, double scale = 1.0)
+    inline UPtr< VesselNetwork > loadVesselNetworkVTK(const std::string& filename, Real scale = 1.0)
     {
         // The VTK types to use
         using VTKIndexType = int;
@@ -515,7 +515,7 @@ namespace nogo
 
         // get length of file:
         input.seekg(0, input.end);
-        int length = input.tellg();
+        int64_t length = input.tellg();
         input.seekg(0, input.beg);
 
         // Read lines until binary blocks are reached
@@ -598,6 +598,7 @@ namespace nogo
                 // According to the VTK doc, a block ends with a line break. Skip the break and continue reading the
                 // next block.
                 input.ignore();
+
             }
             else if (elems[0] == "LINES") // Is LINES?
             {
@@ -751,7 +752,7 @@ namespace nogo
         }
 
         // Copy to target structure. Cast types and apply byteSwap.
-        auto result = std::make_shared< VesselNetwork >();
+        auto result = std::make_unique< VesselNetwork >();
 
         // First, change byte order of the points data, since VTK saves binary files in big-endian order.
         result->points.reserve(loadedPoints.size());
@@ -844,9 +845,9 @@ namespace nogo
                 // result->radii.push_back( r2 );
                 // result->radii.push_back( scale * lineRadius );
 
-                result->lines.push_back(std::make_pair(vI1, vI2));
+                result->lines.emplace_back(vI1, vI2);
                 result->connectedLines.back().push_back(vI1);
-                if (pI == (len - 2))
+                if (pI == static_cast< int >(len - 2))
                 {
                     // Fore add the last point
                     result->connectedLines.back().push_back(vI2);

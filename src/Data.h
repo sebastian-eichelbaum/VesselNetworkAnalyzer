@@ -208,7 +208,7 @@ namespace nogo
         /**
          * Point degrees.
          */
-        std::vector< size_t > degrees;
+        std::vector< uint8_t > degrees;
 
         /**
          * The list of segments, representing ALL segments.

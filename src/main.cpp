@@ -18,6 +18,7 @@
 #include "Settings.h"
 
 #include "Logger.h"
+#include "Util.h"
 #define LogTag "main"
 
 namespace
@@ -206,7 +207,7 @@ int main(int argc, char** argv)
         }
 
         // 2 - Process
-        nogo::analyze(outputDir, *vessels, volume, dtVolume, settings);
+        nogo::analyze(outputDir, std::move(vessels), volume, dtVolume, settings);
 
         LogI << "Analysis done. Quit." << LogEnd;
     }

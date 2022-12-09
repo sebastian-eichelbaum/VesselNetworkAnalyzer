@@ -9,7 +9,9 @@
 //----------------------------------------------------------------------------------------
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <list>
 #include <map>
 #include <numeric>
@@ -68,8 +70,11 @@ namespace nogo
         auto dZ = b[2] - a[2];
 
         // Define the cutBB for the network data
-        return std::make_pair(Vec3({{a[0] + (0.5 * frac * dX), a[1] + (0.5 * frac * dY), a[2] + (0.5 * fracZ * dZ)}}),
-                              Vec3({{b[0] - (0.5 * frac * dX), b[1] - (0.5 * frac * dY), b[2] - (0.5 * fracZ * dZ)}}));
+        return std::make_pair(
+            Vec3({{static_cast< Real >(a[0] + (0.5 * frac * dX)), static_cast< Real >(a[1] + (0.5 * frac * dY)),
+                   static_cast< Real >(a[2] + (0.5 * fracZ * dZ))}}),
+            Vec3({{static_cast< Real >(b[0] - (0.5 * frac * dX)), static_cast< Real >(b[1] - (0.5 * frac * dY)),
+                   static_cast< Real >(b[2] - (0.5 * fracZ * dZ))}}));
     }
 
     /**
@@ -87,7 +92,7 @@ namespace nogo
         auto a = 0.5 * (bb.second[0] - bb.first[0]);
         auto b = 0.5 * (bb.second[1] - bb.first[1]);
         auto h = bb.second[2] - bb.first[2];
-        return pi * a * b * h;
+        return static_cast< Real >(pi * a * b * h);
     }
 
     /**
@@ -202,6 +207,20 @@ namespace nogo
         VesselSegments vessels;
         vessels.points = points;
 
+        // Helper to safely increase the degree until the type max is reached
+        auto degreePlusPlus = [&vessels](size_t idx) {
+            if (vessels.degrees[idx] == std::numeric_limits< uint8_t >::max())
+            {
+                return;
+            }
+
+            vessels.degrees[idx]++;
+        };
+        auto degreePlusDegree = [&vessels](size_t i1, size_t i2) {
+            return static_cast< uint8_t >(clamp(
+                static_cast< uint16_t >(vessels.degrees[i1]) + static_cast< uint16_t >(vessels.degrees[i2]), 0, 250));
+        };
+
         // We need some more information first:
 
         // Do as long as we have non-assigned lines. We mark each assigned line as "assigned" and skip them.
@@ -229,8 +248,10 @@ namespace nogo
 
             // NOTE: keep in mind that this will be equal to linesByPoint[ p1( or 2)Idx ].size(). But as we might need
             // this value quite often, we store it separately to avoid multiple size() calls.
-            vessels.degrees[p1Idx]++;
-            vessels.degrees[p2Idx]++;
+            degreePlusPlus(p1Idx);
+            degreePlusPlus(p2Idx);
+            // vessels.degrees[p1Idx]++;
+            // vessels.degrees[p2Idx]++;
 
             // Build adjacency list
             linesByPoint[p1Idx].push_back(lineIdx);
@@ -300,8 +321,8 @@ namespace nogo
                 // loop). This is more accurate for calculating the segment length.
                 if (loopFound)
                 {
-                    LogW << "Loop found. Gracefully aborting trace." << LogEnd;
-                    return 0.0;
+                    // LogW << "Loop found. Gracefully aborting trace." << LogEnd;
+                    return Real(0);
                 }
 
                 // In cases 1 and 2, recursion stops. So handle case 3, stop in all other cases.
@@ -322,6 +343,8 @@ namespace nogo
 
         // Keep in mind that this routine might change the order of points in a line. So a line defined by (a,b), might
         // be represented here as (b,a) as we cannot make any assumptions on the ordering of points in the source data.
+
+        LogD << "Tracing segments." << LogEnd;
 
         // Iterate. Trace each unassigned line until all lines have been traces/assigned.
         for (auto lineIdx : range(lines.size()))
@@ -432,7 +455,7 @@ namespace nogo
                         // 2) add new point to points list
                         auto newIdx = vessels.points.size();
                         vessels.points.push_back(newPoint);
-                        vessels.degrees.push_back(vessels.degrees[frontIdx] + vessels.degrees[backIdx] - 2);
+                        vessels.degrees.push_back(degreePlusDegree(frontIdx, backIdx) - 2);
                         vessels.degrees[frontIdx] = 0;
                         vessels.degrees[backIdx] = 0;
 
@@ -527,81 +550,6 @@ namespace nogo
             vessels.pointRadii[p1Idx].push_back(radii[lineIdx]);
             vessels.pointRadii[p2Idx].push_back(radii[lineIdx]);
         }
-
-        /*
-
-        // Disabled Adjecency calculation. Its a O(n^2) algorithm that takes ages to computer for larger datasets. The
-        // only part in the analyzer code where this is needed is to calculate branchpoint diameter, but this can be
-        // calculated differently.
-        //
-        // Was a std::vector< std::vector< VesselNetwork::IndexType > > adjacency; in struct VesselSegments in Data.h
-
-        LogI << "Allocating segment adjacency list." << LogEnd;
-
-        // We map each single point. So, pre-allocate the vector for each point. This still triggers a lot of
-        // reallocations for the (default) constructed vectors. But this is way faster than map+set anyways.
-        vessels.adjacency.resize(vessels.points.size());
-        for (auto pointIdx : range(vessels.points.size()))
-        {
-            vessels.adjacency[pointIdx].reserve(8);
-        }
-
-        LogI << "Building segment adjacency list." << LogEnd;
-        for (auto segmentIdx : range(vessels.segments.size()))
-        {
-            if (vessels.removed[segmentIdx])
-            {
-                continue;
-            }
-
-            auto& frontEntry = vessels.adjacency[vessels.segments[segmentIdx].front()];
-            auto& backEntry = vessels.adjacency[vessels.segments[segmentIdx].back()];
-            for (auto segmentIdx2 : range(vessels.segments.size()))
-            {
-                // skip self
-                if (segmentIdx2 == segmentIdx)
-                {
-                    continue;
-                }
-                if (vessels.removed[segmentIdx2])
-                {
-                    continue;
-                }
-
-                // They are adjacent of start/end indices match somehow
-                auto c1 = (vessels.segments[segmentIdx].front() == vessels.segments[segmentIdx2].back());
-                auto c3 = (vessels.segments[segmentIdx].front() == vessels.segments[segmentIdx2].front());
-                if (c1 || c3)
-                {
-                    frontEntry.push_back(segmentIdx2);
-                }
-
-                auto c2 = (vessels.segments[segmentIdx].back() == vessels.segments[segmentIdx2].front());
-                auto c4 = (vessels.segments[segmentIdx].back() == vessels.segments[segmentIdx2].back());
-                if (c2 || c4)
-                {
-                    backEntry.push_back(segmentIdx2);
-                }
-            }
-        }
-
-        LogI << "Updating degrees." << LogEnd;
-        // Calculate new degrees since multiple merges might confuse the upper degree calculation
-        for (auto item : vessels.adjacency)
-        {
-            auto pIdx = item.first;
-            auto&& adj = item.second;
-
-            auto diff = static_cast< int64_t >(adj.size()) - static_cast< int64_t >(vessels.degrees[pIdx]);
-            if (diff != 0)
-            {
-                // LogW << pIdx << " has different degrees in adjacency - calculated: " << adj.size() << " - " <<
-                // vessels.degrees[ pIdx ] << " = "
-                //      << diff << LogEnd;
-                //  vessels.degrees[ pIdx ] = adj.size();
-            }
-        }
-        */
 
         return vessels;
     }
@@ -722,13 +670,13 @@ namespace nogo
     /**
      * Do actual analysis of the data. If something fails, an exception will be thrown.
      *
-     * \param unorderedVesselData the vessel network data. It is assumed that this data is unordered.
+     * \param unorderedVesselData->the vessel network data. It is assumed that this data is unordered.
      * \param maskVolume the vessel volume data.
      * \param dtVolume the distance transformed volume. Use nullptr to skip EVD calculations
      * \param outputDir the directory where to write everything. Ensure a trailing / or \!
      * \param settings the settings to use
      */
-    void analyze(std::string outputDir, const VesselNetwork& unorderedVesselData, ConstSPtr< MaskVolume > maskVolume,
+    void analyze(std::string outputDir, SPtr< VesselNetwork >&& unorderedVesselData, ConstSPtr< MaskVolume > maskVolume,
                  ConstSPtr< DTVolume > dtVolume, const Settings& settings)
     {
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -738,10 +686,11 @@ namespace nogo
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // As the typical programmer is lazy as sh**, we provide some easy access to the members of the vessel network
-        const decltype(unorderedVesselData.points)& origPoints = unorderedVesselData.points;
-        const decltype(unorderedVesselData.lines)& origLines = unorderedVesselData.lines;
-        const decltype(unorderedVesselData.radii)& origRadii = unorderedVesselData.radii;
-        const BB& bb = unorderedVesselData.boundingBox;
+        // WARNING: will be released after cutting the network
+        const decltype(unorderedVesselData->points)& origPoints = unorderedVesselData->points;
+        const decltype(unorderedVesselData->lines)& origLines = unorderedVesselData->lines;
+        const decltype(unorderedVesselData->radii)& origRadii = unorderedVesselData->radii;
+        const BB& bb = unorderedVesselData->boundingBox;
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -772,7 +721,7 @@ namespace nogo
         // The original publication ignored branchpoints in the statistics with a certain degree. Turn this on/off here.
         bool restrictDegree = settings.restrictDegree;
         bool mapLargerToMax = settings.mapLargerToMax;
-        size_t maxBranchpointDegree = settings.maxBranchpointDegree;
+        uint8_t maxBranchpointDegree = settings.maxBranchpointDegree;
 
         // Do a merging step to merge branch points that are very close?
         bool mergeCloseBranchPoints = settings.mergeCloseBranchPoints;
@@ -828,104 +777,113 @@ namespace nogo
         LogD << "Original volume of " << wholeDomainVolume << " mm^3" << LogEnd;
         LogD << "Cut volume of " << networkCutDomainVolume << " mm^3" << LogEnd;
 
-        if (unorderedVesselData.volumeOverride > 0)
+        if (unorderedVesselData->volumeOverride > 0)
         {
-            LogD << "Using volume override: " << unorderedVesselData.volumeOverride << " um^3" << LogEnd;
-            networkCutDomainVolume = unorderedVesselData.volumeOverride;
+            LogD << "Using volume override: " << unorderedVesselData->volumeOverride << " um^3" << LogEnd;
+            networkCutDomainVolume = unorderedVesselData->volumeOverride;
         }
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 1c - cutting the data
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        LogI << "Cutting network." << LogEnd;
-
-        decltype(unorderedVesselData.points) points;
-        decltype(unorderedVesselData.lines) lines;
-        decltype(unorderedVesselData.radii) radii;
-
-        // keep track of the new index of a point.
-        std::vector< int64_t > newPointIndex(origPoints.size(), -1);
-
-        // For each line
-        for (auto lineIdx : range(origLines.size()))
+        decltype(unorderedVesselData->points) points;
+        VesselSegments vessels;
         {
-            // Copy the points if not done already:
-            auto p1Idx = origLines[lineIdx].first;
-            auto p2Idx = origLines[lineIdx].second;
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // 1c - cutting the data
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            auto p1 = origPoints[p1Idx];
-            auto p2 = origPoints[p2Idx];
+            LogI << "Cutting network." << LogEnd;
 
-            auto p1NewIdx = newPointIndex[p1Idx];
-            auto p2NewIdx = newPointIndex[p2Idx];
+            decltype(unorderedVesselData->lines) lines;
+            decltype(unorderedVesselData->radii) radii;
 
-            // Handle three cases:
-            if (!settings.cylindric || settings.preCroppedNetwork || (pointOK(p1) && pointOK(p2)))
+            // keep track of the new index of a point.
+            std::vector< int64_t > newPointIndex(origPoints.size(), -1);
+
+            // For each line
+            for (auto lineIdx : range(origLines.size()))
             {
-                // Case 1: all points inside the volume
-                // handle?
-            }
-            else if (pointOK(p1) && !pointOK(p2))
-            {
-                // Case 2: one point outside
+                // Copy the points if not done already:
+                auto p1Idx = origLines[lineIdx].first;
+                auto p2Idx = origLines[lineIdx].second;
 
-                // Interpolate the other one
-                p2 = cylinderIntersection(p1, p2, cutNetworkBB);
-                // This is definitely a new point.
-                p2NewIdx = -1;
-            }
-            else if (pointOK(p2) && !pointOK(p1))
-            {
-                // Case 2: one point outside, the other way around
+                auto p1 = origPoints[p1Idx];
+                auto p2 = origPoints[p2Idx];
 
-                // Interpolate the other one
-                p1 = cylinderIntersection(p2, p1, cutNetworkBB);
-                // This is definitely a new point.
-                p1NewIdx = -1;
-            }
-            else
-            {
-                // Case 3: both points are outside the new volume. Perfect. Nothing to do .. Ignore the whole line and
-                // its points. Ignore the fact that a long line could cross the volume. The volume is much larger than
-                // the longest segments.
-                continue;
+                auto p1NewIdx = newPointIndex[p1Idx];
+                auto p2NewIdx = newPointIndex[p2Idx];
+
+                // Handle three cases:
+                if (!settings.cylindric || settings.preCroppedNetwork || (pointOK(p1) && pointOK(p2)))
+                {
+                    // Case 1: all points inside the volume
+                    // handle?
+                }
+                else if (pointOK(p1) && !pointOK(p2))
+                {
+                    // Case 2: one point outside
+
+                    // Interpolate the other one
+                    p2 = cylinderIntersection(p1, p2, cutNetworkBB);
+                    // This is definitely a new point.
+                    p2NewIdx = -1;
+                }
+                else if (pointOK(p2) && !pointOK(p1))
+                {
+                    // Case 2: one point outside, the other way around
+
+                    // Interpolate the other one
+                    p1 = cylinderIntersection(p2, p1, cutNetworkBB);
+                    // This is definitely a new point.
+                    p1NewIdx = -1;
+                }
+                else
+                {
+                    // Case 3: both points are outside the new volume. Perfect. Nothing to do .. Ignore the whole line
+                    // and its points. Ignore the fact that a long line could cross the volume. The volume is much
+                    // larger than the longest segments.
+                    continue;
+                }
+
+                // Add the points of not yet existing
+                if (p1NewIdx == -1)
+                {
+                    p1NewIdx = points.size();
+                    points.push_back(p1);
+                    newPointIndex[p1Idx] = p1NewIdx;
+                }
+                if (p2NewIdx == -1)
+                {
+                    p2NewIdx = points.size();
+                    points.push_back(p2);
+                    newPointIndex[p2Idx] = p2NewIdx;
+                }
+
+                // Add the line
+                lines.push_back(std::make_pair(p1NewIdx, p2NewIdx));
+                radii.push_back(origRadii[lineIdx]);
             }
 
-            // Add the points of not yet existing
-            if (p1NewIdx == -1)
-            {
-                p1NewIdx = points.size();
-                points.push_back(p1);
-                newPointIndex[p1Idx] = p1NewIdx;
-            }
-            if (p2NewIdx == -1)
-            {
-                p2NewIdx = points.size();
-                points.push_back(p2);
-                newPointIndex[p2Idx] = p2NewIdx;
-            }
+            LogD << "Original Network Info: " << origPoints.size() << " points in " << origLines.size() << " lines."
+                 << LogEnd;
+            LogD << "Cut Network Info: " << points.size() << " points in " << lines.size() << " lines." << LogEnd;
 
-            // Add the line
-            lines.push_back(std::make_pair(p1NewIdx, p2NewIdx));
-            radii.push_back(origRadii[lineIdx]);
+            // Clear source data. Not required anymore.
+            unorderedVesselData.reset();
+
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // 2 - Derive the network.
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            LogI << "Reconstructing vessel segments." << LogEnd;
+
+            // And this one contains the derived real network.
+            // auto vessels = deriveNetwork(points, std::move(lines), std::move(radii), mergeCloseBranchPoints,
+            // maxMergeDistance);
+            vessels = deriveNetwork(points, lines, radii, mergeCloseBranchPoints, maxMergeDistance);
         }
-
-        LogD << "Original Network Info: " << origPoints.size() << " points in " << origLines.size() << " lines."
-             << LogEnd;
-        LogD << "Cut Network Info: " << points.size() << " points in " << lines.size() << " lines." << LogEnd;
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // 2 - Derive the network.
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        LogI << "Reconstructing vessel segments." << LogEnd;
-        // And this one contains the derived real network.
-        auto vessels = deriveNetwork(points, lines, radii, mergeCloseBranchPoints, maxMergeDistance);
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -1010,7 +968,7 @@ namespace nogo
                     auto tortuosity = realLength / directDistance;
                     if (segment.front() == segment.back())
                     {
-                        LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
+                        // LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
                     }
                     else
                     {
@@ -1019,18 +977,19 @@ namespace nogo
                 }
                 else
                 {
-                    LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
+                    // LogI << "Loop found. Tortuosity is not written for this segment." << LogEnd;
                 }
 
                 // Radius and Diameter ... well this can be a problem. How to handle multiple radii for a single
                 // segment?
                 size_t sumRadii = 0;
-                auto radius = std::accumulate(vessels.radii[segmentIdx].begin(), vessels.radii[segmentIdx].end(), 0.0,
-                                              [&](auto&& a, auto&& b) {
-                                                  sumRadii += b.second;
-                                                  return a + b.first * static_cast< Real >(b.second);
-                                              }) /
-                              static_cast< Real >(sumRadii);
+                auto radius =
+                    std::accumulate(vessels.radii[segmentIdx].begin(), vessels.radii[segmentIdx].end(), Real(0),
+                                    [&](auto&& a, auto&& b) {
+                                        sumRadii += b.second;
+                                        return a + b.first * static_cast< Real >(b.second);
+                                    }) /
+                    static_cast< Real >(sumRadii);
 
                 auto isACapillary = isCapillary(radius);
 
@@ -1106,7 +1065,7 @@ namespace nogo
                                                               diameterPerLenght[binNum].end(), Real());
                                   if (diameterPerLenght[binNum].size() == 0)
                                   {
-                                      return 0.0;
+                                      return Real(0);
                                   }
                                   mean /= static_cast< Real >(diameterPerLenght[binNum].size());
                                   binNum++;
@@ -1220,7 +1179,7 @@ namespace nogo
                             auto maxRadius = Real();
                             if (maxRadiusIter == vessels.pointRadii[pIdx].end())
                             {
-                                LogW << "No radius defined for point: " << pIdx << LogEnd;
+                                // LogW << "No radius defined for point: " << pIdx << LogEnd;
                             }
                             else
                             {

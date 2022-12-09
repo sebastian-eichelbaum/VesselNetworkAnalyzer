@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include <iostream>
+
 #include "Types.h"
 
 #include "Logger.h"
@@ -72,6 +74,18 @@ namespace nogo
             out[i] = in[static_cast< int >(std::floor(i / swapSize)) * swapSize + swapSize - (i % swapSize) - 1];
         }
         return res;
+    }
+
+
+    /**
+     * Wait for the user to press any key.
+     */
+    inline void awaitUser(const std::string& msg = "")
+    {
+        do
+        {
+            std::cout << msg << '\n' << "Press a key to continue...";
+        } while (std::cin.get() != '\n');
     }
 } // namespace nogo
 
