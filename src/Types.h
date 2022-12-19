@@ -29,7 +29,7 @@ namespace nogo
     /**
      * Use this type for floating point operations
      */
-    using Real = double;
+    using Real = float;
 
     /**
      * Alias for abbreviating the often used std::shared_ptr< Type >.

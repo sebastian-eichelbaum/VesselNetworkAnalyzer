@@ -176,7 +176,8 @@ namespace nogo
         BoundingBox boundingBox;
 
         /**
-         * Use an explizit volume for that network. If smaller than zero, the AABB volume will be used instead.
+         * Use an explicit volume for that network. If smaller than zero, the AABB volume will be used instead.
+         * Is defined in mm^3.
          */
         Real volumeOverride = static_cast< Real >(-1);
     };

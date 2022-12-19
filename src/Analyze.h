@@ -779,8 +779,8 @@ namespace nogo
 
         if (unorderedVesselData->volumeOverride > 0)
         {
-            LogD << "Using volume override: " << unorderedVesselData->volumeOverride << " um^3" << LogEnd;
             networkCutDomainVolume = unorderedVesselData->volumeOverride;
+            LogD << "Using volume override: " << networkCutDomainVolume << " mm^3" << LogEnd;
         }
 
         decltype(unorderedVesselData->points) points;
