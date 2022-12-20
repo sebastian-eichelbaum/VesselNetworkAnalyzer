@@ -764,6 +764,7 @@ namespace nogo
         if (unorderedVesselData->volumeOverride > 0)
         {
             networkCutDomainVolume = unorderedVesselData->volumeOverride;
+            networkCutDomainVolumeMicroMeterCube = networkCutDomainVolume * std::pow(1000.0, 3);
             LogD << "Using volume override: " << networkCutDomainVolume << " mm^3" << LogEnd;
         }
 
@@ -1109,6 +1110,13 @@ namespace nogo
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         {
+            struct Counters
+            {
+                size_t all = 0;
+                size_t cap = 0;
+                size_t noncap = 0;
+            };
+
             BranchPointData localBranchPointData;
 
             auto highestDegree = *std::max_element(vessels.degrees.begin(), vessels.degrees.end());
@@ -1126,6 +1134,12 @@ namespace nogo
 
             // As points are shared, we need to keep track which point was handled already.
             std::map< size_t, bool > handledPoint;
+
+            // Count branch-points and accumulate degrees
+            Counters degreeAcc;
+            Counters branchAcc;
+            Counters branchAccDeg3;
+            Counters branchAccDeg4;
 
             LogI << "Building Branch Point Info" << LogEnd;
             // We have a network -> each segments start/end is either a branch point or a "finger" - endpoint
@@ -1178,27 +1192,22 @@ namespace nogo
                             localBranchPointData.isCapillary.push_back(isACapillary);
 
                             // Count for density
-                            localBranchPointData.branchPointDensity += 1.0;
-                            localBranchPointData.branchPointDegree3Density += (degree == 3) ? 1.0 : 0.0;
-                            localBranchPointData.branchPointDegree4Density += (degree == 4) ? 1.0 : 0.0;
+                            branchAcc.all += 1;
+                            branchAcc.cap += (isACapillary) ? 1 : 0;
+                            branchAcc.noncap += (!isACapillary) ? 1 : 0;
 
-                            // Count and diff between capillary and non-capillary
-                            localBranchPointData.branchPointDensityCapillary += (isACapillary) ? 1.0 : 0.0;
-                            localBranchPointData.branchPointDegree3DensityCapillary +=
-                                (isACapillary && (degree == 3)) ? 1.0 : 0.0;
-                            localBranchPointData.branchPointDegree4DensityCapillary +=
-                                (isACapillary && (degree == 4)) ? 1.0 : 0.0;
+                            branchAccDeg3.all += (degree == 3) ? 1 : 0;
+                            branchAccDeg3.cap += (isACapillary && (degree == 3)) ? 1 : 0;
+                            branchAccDeg3.noncap += (!isACapillary && (degree == 3)) ? 1 : 0;
 
-                            localBranchPointData.branchPointDensityNonCapillary += (!isACapillary) ? 1.0 : 0.0;
-                            localBranchPointData.branchPointDegree3DensityNonCapillary +=
-                                (!isACapillary && (degree == 3)) ? 1.0 : 0.0;
-                            localBranchPointData.branchPointDegree4DensityNonCapillary +=
-                                (!isACapillary && (degree == 4)) ? 1.0 : 0.0;
+                            branchAccDeg4.all += (degree == 4) ? 1 : 0;
+                            branchAccDeg4.cap += (isACapillary && (degree == 4)) ? 1 : 0;
+                            branchAccDeg4.noncap += (!isACapillary && (degree == 4)) ? 1 : 0;
 
                             // Also accumulate the degrees into the mean values
-                            localBranchPointData.degreeMean += degree;
-                            localBranchPointData.degreeMeanCapillary += (isACapillary) ? degree : 0.0;
-                            localBranchPointData.degreeMeanNonCapillary += (!isACapillary) ? degree : 0.0;
+                            degreeAcc.all += degree;
+                            degreeAcc.cap += (isACapillary) ? degree : 0;
+                            degreeAcc.noncap += (!isACapillary) ? degree : 0;
                         }
                     }
                 }
@@ -1206,42 +1215,31 @@ namespace nogo
 
             LogI << "Building Branch Point Info: derived values" << LogEnd;
 
+            auto divide = [](auto a, auto b) {
+                return static_cast< Real >(static_cast< double >(a) / static_cast< double >(b));
+            };
+
             // Branch Degree Means
             // NOTE: the densities are counters and not yet scaled for volume.
-            localBranchPointData.degreeMean /= localBranchPointData.branchPointDensity;
-            localBranchPointData.degreeMeanCapillary /= localBranchPointData.branchPointDensityCapillary;
-            localBranchPointData.degreeMeanNonCapillary /= localBranchPointData.branchPointDensityNonCapillary;
+            localBranchPointData.degreeMean = divide(degreeAcc.all, branchAcc.all);
+            localBranchPointData.degreeMeanCapillary = divide(degreeAcc.cap, branchAcc.cap);
+            localBranchPointData.degreeMeanNonCapillary = divide(degreeAcc.noncap, branchAcc.noncap);
 
             // Relative to volume:
-            localBranchPointData.branchPointDensity /= networkCutDomainVolume;
-            localBranchPointData.branchPointDegree3Density =
-                (localBranchPointData.branchPointDegree3Density > 0.0)
-                    ? localBranchPointData.branchPointDegree3Density / networkCutDomainVolume
-                    : 0.0;
-            localBranchPointData.branchPointDegree4Density =
-                (localBranchPointData.branchPointDegree4Density > 0.0)
-                    ? localBranchPointData.branchPointDegree4Density / networkCutDomainVolume
-                    : 0.0;
 
-            localBranchPointData.branchPointDensityCapillary /= networkCutDomainVolume;
-            localBranchPointData.branchPointDegree3DensityCapillary =
-                (localBranchPointData.branchPointDegree3DensityCapillary > 0.0)
-                    ? localBranchPointData.branchPointDegree3DensityCapillary / networkCutDomainVolume
-                    : 0.0;
-            localBranchPointData.branchPointDegree4DensityCapillary =
-                (localBranchPointData.branchPointDegree4DensityCapillary > 0.0)
-                    ? localBranchPointData.branchPointDegree4DensityCapillary / networkCutDomainVolume
-                    : 0.0;
+            localBranchPointData.branchPointDensity = divide(branchAcc.all, networkCutDomainVolume);
+            localBranchPointData.branchPointDensityCapillary = divide(branchAcc.cap, networkCutDomainVolume);
+            localBranchPointData.branchPointDensityNonCapillary = divide(branchAcc.noncap, networkCutDomainVolume);
 
-            localBranchPointData.branchPointDensityNonCapillary /= networkCutDomainVolume;
+            localBranchPointData.branchPointDegree3Density = divide(branchAccDeg3.all, networkCutDomainVolume);
+            localBranchPointData.branchPointDegree3DensityCapillary = divide(branchAccDeg3.cap, networkCutDomainVolume);
             localBranchPointData.branchPointDegree3DensityNonCapillary =
-                (localBranchPointData.branchPointDegree3DensityNonCapillary > 0.0)
-                    ? localBranchPointData.branchPointDegree3DensityNonCapillary / networkCutDomainVolume
-                    : 0.0;
+                divide(branchAccDeg3.noncap, networkCutDomainVolume);
+
+            localBranchPointData.branchPointDegree4Density = divide(branchAccDeg4.all, networkCutDomainVolume);
+            localBranchPointData.branchPointDegree4DensityCapillary = divide(branchAccDeg4.cap, networkCutDomainVolume);
             localBranchPointData.branchPointDegree4DensityNonCapillary =
-                (localBranchPointData.branchPointDegree4DensityNonCapillary > 0.0)
-                    ? localBranchPointData.branchPointDegree4DensityNonCapillary / networkCutDomainVolume
-                    : 0.0;
+                divide(branchAccDeg4.noncap, networkCutDomainVolume);
 
             LogI << "Branch Point Info: ";
             for (auto deg : range(3, highestDegree + 1))
@@ -1327,8 +1325,10 @@ namespace nogo
             else
             {
                 LogI << "Using VVF from network segment volumes." << LogEnd;
-                LogI << "Segment Volume: " << segmentVolume << ", Network Volume: " << networkCutDomainVolume << LogEnd;
-                globalVolumeData.vesselVolumeFractionLocal = segmentVolume / networkCutDomainVolume;
+                LogI << "Segment Volume in um3: " << segmentVolume
+                     << ", Network Volume in mm3: " << networkCutDomainVolume << LogEnd;
+                // The data is defined in micrometer^3.
+                globalVolumeData.vesselVolumeFractionLocal = segmentVolume / networkCutDomainVolumeMicroMeterCube;
                 globalVolumeData.vesselVolumeFraction = globalVolumeData.vesselVolumeFractionLocal;
             }
 
