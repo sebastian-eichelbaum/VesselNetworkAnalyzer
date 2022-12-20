@@ -207,20 +207,6 @@ namespace nogo
         VesselSegments vessels;
         vessels.points = points;
 
-        // Helper to safely increase the degree until the type max is reached
-        auto degreePlusPlus = [&vessels](size_t idx) {
-            if (vessels.degrees[idx] == std::numeric_limits< uint8_t >::max())
-            {
-                return;
-            }
-
-            vessels.degrees[idx]++;
-        };
-        auto degreePlusDegree = [&vessels](size_t i1, size_t i2) {
-            return static_cast< uint8_t >(clamp(
-                static_cast< uint16_t >(vessels.degrees[i1]) + static_cast< uint16_t >(vessels.degrees[i2]), 0, 250));
-        };
-
         // We need some more information first:
 
         // Do as long as we have non-assigned lines. We mark each assigned line as "assigned" and skip them.
@@ -248,10 +234,8 @@ namespace nogo
 
             // NOTE: keep in mind that this will be equal to linesByPoint[ p1( or 2)Idx ].size(). But as we might need
             // this value quite often, we store it separately to avoid multiple size() calls.
-            degreePlusPlus(p1Idx);
-            degreePlusPlus(p2Idx);
-            // vessels.degrees[p1Idx]++;
-            // vessels.degrees[p2Idx]++;
+            vessels.degrees[p1Idx]++;
+            vessels.degrees[p2Idx]++;
 
             // Build adjacency list
             linesByPoint[p1Idx].push_back(lineIdx);
@@ -455,7 +439,7 @@ namespace nogo
                         // 2) add new point to points list
                         auto newIdx = vessels.points.size();
                         vessels.points.push_back(newPoint);
-                        vessels.degrees.push_back(degreePlusDegree(frontIdx, backIdx) - 2);
+                        vessels.degrees.push_back(vessels.degrees[frontIdx] + vessels.degrees[backIdx] - 2);
                         vessels.degrees[frontIdx] = 0;
                         vessels.degrees[backIdx] = 0;
 
@@ -721,7 +705,7 @@ namespace nogo
         // The original publication ignored branchpoints in the statistics with a certain degree. Turn this on/off here.
         bool restrictDegree = settings.restrictDegree;
         bool mapLargerToMax = settings.mapLargerToMax;
-        uint8_t maxBranchpointDegree = settings.maxBranchpointDegree;
+        auto maxBranchpointDegree = settings.maxBranchpointDegree;
 
         // Do a merging step to merge branch points that are very close?
         bool mergeCloseBranchPoints = settings.mergeCloseBranchPoints;
@@ -1130,7 +1114,9 @@ namespace nogo
             auto highestDegree = *std::max_element(vessels.degrees.begin(), vessels.degrees.end());
 
             // The highest degree to include into the statistics
-            auto maxDegree = restrictDegree ? std::min(highestDegree, maxBranchpointDegree) : highestDegree;
+            auto maxDegree = restrictDegree
+                                 ? std::min(highestDegree, static_cast< decltype(highestDegree) >(maxBranchpointDegree))
+                                 : highestDegree;
 
             // Reserve some space -> reduce allocations during loop
             localBranchPointData.degrees.reserve(vessels.points.size());

@@ -11,6 +11,7 @@
 #ifndef NOGO_DATA_H
 #define NOGO_DATA_H
 
+#include <cstddef>
 #include <list>
 #include <map>
 #include <string>
@@ -209,7 +210,7 @@ namespace nogo
         /**
          * Point degrees.
          */
-        std::vector< uint8_t > degrees;
+        std::vector< size_t > degrees;
 
         /**
          * The list of segments, representing ALL segments.
