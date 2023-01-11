@@ -242,12 +242,12 @@ namespace nogo
         /**
          * Capillary volume derived from lines data.
          */
-        Real volumeCapillaries;
+        double volumeCapillaries;
 
         /**
          * Non-Capillary volume derived from lines data.
          */
-        Real volumeNonCapillaries;
+        double volumeNonCapillaries;
     };
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

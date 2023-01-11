@@ -919,6 +919,8 @@ namespace nogo
             // };
 
             // We have a network -> copy its data and calc if needed
+
+            LogI << "Calculating segment data." << LogEnd;
             for (auto segmentIdx : range(vessels.segments.size()))
             {
                 if (vessels.removed[segmentIdx])
@@ -971,14 +973,17 @@ namespace nogo
                 auto radius =
                     std::accumulate(vessels.radii[segmentIdx].begin(), vessels.radii[segmentIdx].end(), Real(0),
                                     [&](auto&& a, auto&& b) {
+                                        const auto& radCount = static_cast< Real >(b.second);
                                         sumRadii += b.second;
-                                        return a + b.first * static_cast< Real >(b.second);
+                                        return a + b.first * radCount;
                                     }) /
                     static_cast< Real >(sumRadii);
 
                 auto isACapillary = isCapillary(radius);
 
                 // v = pi * r^2 * h
+                // This is an average volume for this segment. The accurate per-line volume is only needed as a sum and
+                // is done during deriveNetwork
                 Real vol = pi * std::pow(radius, 2.0) * realLength;
 
                 localSegmentData.radiiSingle[segmentIdx] = radius;
@@ -1325,8 +1330,14 @@ namespace nogo
             else
             {
                 LogI << "Using VVF from network segment volumes." << LogEnd;
-                LogI << "Segment Volume in um3: " << segmentVolume
+                LogI << "Segment Volume in um3: " << segmentVolume << LogEnd;
+                LogI << "Segment Volume in mm3: " << segmentVolume / static_cast< Real >(1000 * 1000 * 1000)
                      << ", Network Volume in mm3: " << networkCutDomainVolume << LogEnd;
+                LogI << "Segment Volume Capillaries in mm3: "
+                     << vessels.volumeCapillaries / static_cast< Real >(1000 * 1000 * 1000) << LogEnd;
+                LogI << "Segment Volume Non-Capilaries in mm3: "
+                     << vessels.volumeNonCapillaries / static_cast< Real >(1000 * 1000 * 1000) << LogEnd;
+
                 // The data is defined in micrometer^3.
                 globalVolumeData.vesselVolumeFractionLocal = segmentVolume / networkCutDomainVolumeMicroMeterCube;
                 globalVolumeData.vesselVolumeFraction = globalVolumeData.vesselVolumeFractionLocal;
